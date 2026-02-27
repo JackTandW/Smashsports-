@@ -1,90 +1,54 @@
-import path from 'path';
-import fs from 'fs';
-
-const DB_PATH = path.join(process.cwd(), 'db', 'smash-dashboard.sqlite');
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let db: any = null;
+import { neon } from '@neondatabase/serverless';
 
 /**
- * Lazily open (or return the cached) SQLite connection.
- * better-sqlite3 is loaded dynamically so that the native addon is
- * never required at module-import time — this prevents Vercel serverless
- * functions from crashing when the route uses USE_MOCK_DATA instead.
+ * Neon Postgres serverless SQL client.
+ * Uses HTTP-based tagged template literals — stateless, perfect for Vercel.
+ *
+ * Usage:  import { sql } from '@/lib/db';
+ *         const rows = await sql`SELECT * FROM posts WHERE id = ${id}`;
  */
-export function getDb() {
-  if (!db) {
-    // Dynamic require — only executed when live DB is actually needed
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const Database = require('better-sqlite3');
+export const sql = neon(process.env.DATABASE_URL!);
 
-    const dir = path.dirname(DB_PATH);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
+// ─── Refresh log helpers ────────────────────────────────────────────────
 
-    db = new Database(DB_PATH);
-    db.pragma('journal_mode = WAL');
-    db.pragma('foreign_keys = ON');
-
-    const schemaPath = path.join(process.cwd(), 'db', 'schema.sql');
-    if (fs.existsSync(schemaPath)) {
-      const schema = fs.readFileSync(schemaPath, 'utf-8');
-      db.exec(schema);
-    }
-
-    // M-07: Add duration_ms column to refresh_log if not present
-    const cols = db.prepare("PRAGMA table_info('refresh_log')").all() as { name: string }[];
-    if (!cols.some((c: { name: string }) => c.name === 'duration_ms')) {
-      db.exec('ALTER TABLE refresh_log ADD COLUMN duration_ms INTEGER');
-    }
-  }
-  return db;
+export async function getLastRefreshTime(): Promise<string | null> {
+  const rows = await sql`
+    SELECT completed_at::text FROM refresh_log
+    WHERE status = 'completed'
+    ORDER BY completed_at DESC LIMIT 1
+  `;
+  return (rows[0]?.completed_at as string) ?? null;
 }
 
-export function getLastRefreshTime(): string | null {
-  const d = getDb();
-  const row = d
-    .prepare(
-      `SELECT completed_at FROM refresh_log
-       WHERE status = 'completed'
-       ORDER BY completed_at DESC LIMIT 1`
-    )
-    .get() as { completed_at: string } | undefined;
-  return row?.completed_at ?? null;
+export async function logRefreshStart(): Promise<number> {
+  const rows = await sql`
+    INSERT INTO refresh_log (started_at, status)
+    VALUES (NOW(), 'running')
+    RETURNING id
+  `;
+  return rows[0].id as number;
 }
 
-export function logRefreshStart(): number {
-  const d = getDb();
-  const result = d
-    .prepare(
-      `INSERT INTO refresh_log (started_at, status) VALUES (datetime('now'), 'running')`
-    )
-    .run();
-  return Number(result.lastInsertRowid);
-}
-
-export function logRefreshComplete(
+export async function logRefreshComplete(
   id: number,
   status: 'completed' | 'failed',
   recordsUpdated: number,
   error?: string
-): void {
-  const d = getDb();
-  // M-07: Track duration in seconds alongside completion
-  d.prepare(
-    `UPDATE refresh_log
-     SET completed_at = datetime('now'),
-         status = ?,
-         records_updated = ?,
-         error = ?,
-         duration_ms = CAST((julianday('now') - julianday(started_at)) * 86400000 AS INTEGER)
-     WHERE id = ?`
-  ).run(status, recordsUpdated, error ?? null, id);
+): Promise<void> {
+  await sql`
+    UPDATE refresh_log
+    SET completed_at = NOW(),
+        status = ${status},
+        records_updated = ${recordsUpdated},
+        error = ${error ?? null},
+        duration_ms = CAST(EXTRACT(EPOCH FROM (NOW() - started_at)) * 1000 AS INTEGER)
+    WHERE id = ${id}
+  `;
 }
 
-// H-02: Staleness check — data older than threshold hours is considered stale
-const STALENESS_THRESHOLD_HOURS = 26; // ~1 day with buffer for daily refreshes
+// ─── Staleness check (H-02) ────────────────────────────────────────────
+
+const STALENESS_THRESHOLD_HOURS = 26;
 
 export interface RefreshStatus {
   lastRefreshAt: string | null;
@@ -93,27 +57,25 @@ export interface RefreshStatus {
   lastDurationMs: number | null;
 }
 
-export function getRefreshStatus(): RefreshStatus {
-  const d = getDb();
-  const row = d
-    .prepare(
-      `SELECT completed_at, duration_ms FROM refresh_log
-       WHERE status = 'completed'
-       ORDER BY completed_at DESC LIMIT 1`
-    )
-    .get() as { completed_at: string; duration_ms: number | null } | undefined;
+export async function getRefreshStatus(): Promise<RefreshStatus> {
+  const rows = await sql`
+    SELECT completed_at::text, duration_ms FROM refresh_log
+    WHERE status = 'completed'
+    ORDER BY completed_at DESC LIMIT 1
+  `;
 
+  const row = rows[0];
   if (!row?.completed_at) {
     return { lastRefreshAt: null, isStale: true, hoursAgo: null, lastDurationMs: null };
   }
 
-  const lastRefresh = new Date(row.completed_at + 'Z');
+  const lastRefresh = new Date(row.completed_at as string);
   const hoursAgo = (Date.now() - lastRefresh.getTime()) / (1000 * 60 * 60);
 
   return {
-    lastRefreshAt: row.completed_at,
+    lastRefreshAt: row.completed_at as string,
     isStale: hoursAgo > STALENESS_THRESHOLD_HOURS,
     hoursAgo: Math.round(hoursAgo * 10) / 10,
-    lastDurationMs: row.duration_ms,
+    lastDurationMs: (row.duration_ms as number) ?? null,
   };
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { sql } from '@/lib/db';
 import { buildTalentDrillDownPayload } from '@/lib/talent-data-processing';
 import { getTalentConfig } from '@/lib/talent-config';
 import { enrichTalentPostsWithShows } from '@/lib/talent-attribution';
@@ -128,19 +128,23 @@ export async function GET(
       return NextResponse.json(data);
     }
 
-    const db = getDb();
-
-    const sql = `
-      SELECT id, talent_id, platform, created_at, content, permalink,
+    const currentRows = await sql`
+      SELECT id, talent_id, platform, created_at::text, content, permalink,
              impressions, engagements, video_views, reactions, comments,
              shares, saves, emv
       FROM talent_posts
-      WHERE date(created_at) >= ? AND date(created_at) <= ?
+      WHERE created_at::date >= ${dateRange.start} AND created_at::date <= ${dateRange.end}
       ORDER BY created_at DESC
-    `;
+    ` as TalentPostRow[];
 
-    const currentRows = db.prepare(sql).all(dateRange.start, dateRange.end) as TalentPostRow[];
-    const previousRows = db.prepare(sql).all(previousRange.start, previousRange.end) as TalentPostRow[];
+    const previousRows = await sql`
+      SELECT id, talent_id, platform, created_at::text, content, permalink,
+             impressions, engagements, video_views, reactions, comments,
+             shares, saves, emv
+      FROM talent_posts
+      WHERE created_at::date >= ${previousRange.start} AND created_at::date <= ${previousRange.end}
+      ORDER BY created_at DESC
+    ` as TalentPostRow[];
 
     const posts = enrichTalentPostsWithShows(currentRows.map(mapRowToTalentPost));
     const previousPosts = enrichTalentPostsWithShows(previousRows.map(mapRowToTalentPost));

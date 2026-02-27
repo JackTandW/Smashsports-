@@ -1,19 +1,19 @@
--- Smash Sports Dashboard — SQLite Schema
+-- Smash Sports Dashboard — PostgreSQL Schema (Neon)
 
 -- Profile metadata cache
 CREATE TABLE IF NOT EXISTS profiles (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   customer_profile_id INTEGER UNIQUE NOT NULL,
   platform TEXT NOT NULL,
   name TEXT NOT NULL,
   handle TEXT,
   native_id TEXT,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Daily metrics (one row per profile per day)
 CREATE TABLE IF NOT EXISTS daily_metrics (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   profile_id INTEGER NOT NULL,
   platform TEXT NOT NULL,
   date DATE NOT NULL,
@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS daily_metrics (
   followers INTEGER DEFAULT 0,
   follower_growth INTEGER DEFAULT 0,
   posts_published INTEGER DEFAULT 0,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(profile_id, date)
 );
 
@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS posts (
   id TEXT PRIMARY KEY,
   profile_id INTEGER NOT NULL,
   platform TEXT NOT NULL,
-  created_at DATETIME NOT NULL,
+  created_at TIMESTAMP NOT NULL,
   content TEXT,
   permalink TEXT,
   impressions INTEGER DEFAULT 0,
@@ -48,47 +48,44 @@ CREATE TABLE IF NOT EXISTS posts (
   shares INTEGER DEFAULT 0,
   saves INTEGER DEFAULT 0,
   clicks INTEGER DEFAULT 0,
-  emv REAL DEFAULT 0,
-  cached_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  emv DOUBLE PRECISION DEFAULT 0,
+  cached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Weekly snapshots (for Prompt 02 compatibility)
 CREATE TABLE IF NOT EXISTS weekly_snapshots (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   week_start DATE NOT NULL,
   week_end DATE NOT NULL,
   platform TEXT NOT NULL,
   views INTEGER DEFAULT 0,
   impressions INTEGER DEFAULT 0,
   engagements INTEGER DEFAULT 0,
-  engagement_rate REAL DEFAULT 0,
+  engagement_rate DOUBLE PRECISION DEFAULT 0,
   posts_count INTEGER DEFAULT 0,
   followers_start INTEGER DEFAULT 0,
   followers_end INTEGER DEFAULT 0,
   follower_growth INTEGER DEFAULT 0,
-  emv_total REAL DEFAULT 0,
-  emv_views REAL DEFAULT 0,
-  emv_likes REAL DEFAULT 0,
-  emv_comments REAL DEFAULT 0,
-  emv_shares REAL DEFAULT 0,
-  emv_other REAL DEFAULT 0,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  emv_total DOUBLE PRECISION DEFAULT 0,
+  emv_views DOUBLE PRECISION DEFAULT 0,
+  emv_likes DOUBLE PRECISION DEFAULT 0,
+  emv_comments DOUBLE PRECISION DEFAULT 0,
+  emv_shares DOUBLE PRECISION DEFAULT 0,
+  emv_other DOUBLE PRECISION DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(week_start, platform)
 );
 
 -- Refresh log
 CREATE TABLE IF NOT EXISTS refresh_log (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  started_at DATETIME NOT NULL,
-  completed_at DATETIME,
+  id SERIAL PRIMARY KEY,
+  started_at TIMESTAMP NOT NULL,
+  completed_at TIMESTAMP,
   status TEXT DEFAULT 'running',
   error TEXT,
-  records_updated INTEGER DEFAULT 0
+  records_updated INTEGER DEFAULT 0,
+  duration_ms INTEGER
 );
-
--- M-07: Add duration_ms to refresh_log if not present
--- SQLite does not support IF NOT EXISTS for ALTER TABLE, so we handle this in code.
--- The column is added programmatically in lib/db.ts if missing.
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_daily_platform ON daily_metrics(platform);
@@ -105,7 +102,7 @@ CREATE TABLE IF NOT EXISTS talent_posts (
   id TEXT PRIMARY KEY,
   talent_id TEXT NOT NULL,
   platform TEXT NOT NULL,
-  created_at DATETIME NOT NULL,
+  created_at TIMESTAMP NOT NULL,
   content TEXT,
   permalink TEXT,
   impressions INTEGER DEFAULT 0,
@@ -115,8 +112,8 @@ CREATE TABLE IF NOT EXISTS talent_posts (
   comments INTEGER DEFAULT 0,
   shares INTEGER DEFAULT 0,
   saves INTEGER DEFAULT 0,
-  emv REAL DEFAULT 0,
-  cached_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  emv DOUBLE PRECISION DEFAULT 0,
+  cached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_talent_posts_talent ON talent_posts(talent_id);

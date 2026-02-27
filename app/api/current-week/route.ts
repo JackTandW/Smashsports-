@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getDb, getLastRefreshTime } from '@/lib/db';
+import { sql, getLastRefreshTime } from '@/lib/db';
 import type { PostMetrics } from '@/lib/types';
 import type { DailyMetricRow } from '@/lib/weekly-data-processing';
 import type { WeeklySnapshotRow } from '@/lib/weekly-types';
@@ -10,28 +10,6 @@ import {
 import { getPreviousWeek } from '@/lib/weekly-data-processing';
 
 export const runtime = 'nodejs';
-
-const DAILY_METRICS_QUERY = `
-  SELECT date, platform,
-         SUM(impressions) as impressions, SUM(engagements) as engagements,
-         SUM(reactions) as reactions, SUM(comments) as comments,
-         SUM(shares) as shares, SUM(saves) as saves,
-         SUM(video_views) as video_views, SUM(clicks) as clicks,
-         MAX(followers) as followers, SUM(follower_growth) as follower_growth,
-         SUM(posts_published) as posts_published
-  FROM daily_metrics
-  WHERE date >= ? AND date <= ?
-  GROUP BY date, platform
-`;
-
-const POSTS_QUERY = `
-  SELECT id, platform, profile_id as profileId, created_at as createdAt,
-         content, permalink, impressions, engagements, video_views as videoViews,
-         reactions, comments, shares, saves, clicks, emv
-  FROM posts
-  WHERE created_at >= ? AND created_at <= ?
-  ORDER BY created_at DESC
-`;
 
 /**
  * GET /api/current-week
@@ -69,54 +47,81 @@ export async function GET() {
       return NextResponse.json(data);
     }
 
-    // ── Live-data path (SQLite) ──
-    const db = getDb();
+    // ── Live-data path (Neon Postgres) ──
     const { weekStart, weekEnd } = getCurrentWeekRange();
     const { weekStart: lastWeekStart, weekEnd: lastWeekEnd } = getPreviousWeek(weekStart);
 
     // 1. This week daily metrics
-    const thisWeekDailyRows = db
-      .prepare(DAILY_METRICS_QUERY)
-      .all(weekStart, weekEnd) as DailyMetricRow[];
+    const thisWeekDailyRows = await sql`
+      SELECT date::text, platform,
+             SUM(impressions)::integer as impressions, SUM(engagements)::integer as engagements,
+             SUM(reactions)::integer as reactions, SUM(comments)::integer as comments,
+             SUM(shares)::integer as shares, SUM(saves)::integer as saves,
+             SUM(video_views)::integer as video_views, SUM(clicks)::integer as clicks,
+             MAX(followers)::integer as followers, SUM(follower_growth)::integer as follower_growth,
+             SUM(posts_published)::integer as posts_published
+      FROM daily_metrics
+      WHERE date >= ${weekStart} AND date <= ${weekEnd}
+      GROUP BY date, platform
+    ` as DailyMetricRow[];
 
     // 2. Last week daily metrics
-    const lastWeekDailyRows = db
-      .prepare(DAILY_METRICS_QUERY)
-      .all(lastWeekStart, lastWeekEnd) as DailyMetricRow[];
+    const lastWeekDailyRows = await sql`
+      SELECT date::text, platform,
+             SUM(impressions)::integer as impressions, SUM(engagements)::integer as engagements,
+             SUM(reactions)::integer as reactions, SUM(comments)::integer as comments,
+             SUM(shares)::integer as shares, SUM(saves)::integer as saves,
+             SUM(video_views)::integer as video_views, SUM(clicks)::integer as clicks,
+             MAX(followers)::integer as followers, SUM(follower_growth)::integer as follower_growth,
+             SUM(posts_published)::integer as posts_published
+      FROM daily_metrics
+      WHERE date >= ${lastWeekStart} AND date <= ${lastWeekEnd}
+      GROUP BY date, platform
+    ` as DailyMetricRow[];
 
     // 3. This week posts
-    const thisWeekPosts = db
-      .prepare(POSTS_QUERY)
-      .all(
-        `${weekStart}T00:00:00`,
-        `${weekEnd}T23:59:59`
-      ) as PostMetrics[];
+    const thisWeekPosts = await sql`
+      SELECT id, platform, profile_id as "profileId", created_at::text as "createdAt",
+             content, permalink, impressions, engagements, video_views as "videoViews",
+             reactions, comments, shares, saves, clicks, emv
+      FROM posts
+      WHERE created_at >= ${`${weekStart}T00:00:00`} AND created_at <= ${`${weekEnd}T23:59:59`}
+      ORDER BY created_at DESC
+    ` as PostMetrics[];
 
     // 4. Last week posts (for hourly comparison)
-    const lastWeekPosts = db
-      .prepare(POSTS_QUERY)
-      .all(
-        `${lastWeekStart}T00:00:00`,
-        `${lastWeekEnd}T23:59:59`
-      ) as PostMetrics[];
+    const lastWeekPosts = await sql`
+      SELECT id, platform, profile_id as "profileId", created_at::text as "createdAt",
+             content, permalink, impressions, engagements, video_views as "videoViews",
+             reactions, comments, shares, saves, clicks, emv
+      FROM posts
+      WHERE created_at >= ${`${lastWeekStart}T00:00:00`} AND created_at <= ${`${lastWeekEnd}T23:59:59`}
+      ORDER BY created_at DESC
+    ` as PostMetrics[];
 
     // 5. Recent posts (last 4 weeks) for velocity calculation
     const fourWeeksAgo = new Date(weekStart);
     fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
-    const recentPosts = db
-      .prepare(POSTS_QUERY)
-      .all(
-        `${fourWeeksAgo.toISOString().split('T')[0]}T00:00:00`,
-        `${weekEnd}T23:59:59`
-      ) as PostMetrics[];
+    const recentPosts = await sql`
+      SELECT id, platform, profile_id as "profileId", created_at::text as "createdAt",
+             content, permalink, impressions, engagements, video_views as "videoViews",
+             reactions, comments, shares, saves, clicks, emv
+      FROM posts
+      WHERE created_at >= ${`${fourWeeksAgo.toISOString().split('T')[0]}T00:00:00`}
+        AND created_at <= ${`${weekEnd}T23:59:59`}
+      ORDER BY created_at DESC
+    ` as PostMetrics[];
 
     // 6. Last week snapshot (if already persisted)
-    const lastWeekSnapshotRows = db
-      .prepare('SELECT * FROM weekly_snapshots WHERE week_start = ?')
-      .all(lastWeekStart) as WeeklySnapshotRow[];
+    const lastWeekSnapshotRows = await sql`
+      SELECT week_start::text, week_end::text, platform, views, impressions,
+             engagements, engagement_rate, posts_count, followers_start, followers_end,
+             follower_growth, emv_total, emv_views, emv_likes, emv_comments, emv_shares, emv_other
+      FROM weekly_snapshots WHERE week_start = ${lastWeekStart}
+    ` as WeeklySnapshotRow[];
 
     // 7. Last refresh time
-    const lastRefreshed = getLastRefreshTime();
+    const lastRefreshed = await getLastRefreshTime();
 
     // Build the payload
     const data = buildCurrentWeekPayload(

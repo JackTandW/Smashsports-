@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { sql } from '@/lib/db';
 import { getTalentConfig } from '@/lib/talent-config';
 import { calculateEMV } from '@/lib/emv-calculator';
 import type { PlatformId } from '@/lib/types';
@@ -79,16 +79,12 @@ export async function POST(request: NextRequest) {
 
     const id = 'tp-' + Math.random().toString(36).substring(2, 10) + '-' + Date.now().toString(36);
     const createdAt = body.createdAt ?? new Date().toISOString();
+    const permalink = body.permalink ?? '';
 
-    const db = getDb();
-    db.prepare(`
+    await sql`
       INSERT INTO talent_posts (id, talent_id, platform, created_at, content, permalink, impressions, engagements, video_views, reactions, comments, shares, saves, emv)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      id, body.talentId, body.platform, createdAt,
-      body.content, body.permalink ?? '', impressions, engagements,
-      videoViews, reactions, comments, shares, saves, emv
-    );
+      VALUES (${id}, ${body.talentId}, ${body.platform}, ${createdAt}, ${body.content}, ${permalink}, ${impressions}, ${engagements}, ${videoViews}, ${reactions}, ${comments}, ${shares}, ${saves}, ${emv})
+    `;
 
     return NextResponse.json({
       id,

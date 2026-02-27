@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { sql } from '@/lib/db';
 import { buildShowDrillDownPayload } from '@/lib/show-data-processing';
 import { getShowConfig } from '@/lib/show-attribution';
 import type { PostMetrics, PlatformId } from '@/lib/types';
@@ -134,31 +134,25 @@ export async function GET(
       return NextResponse.json(payload);
     }
 
-    const db = getDb();
-
     // Fetch posts for current period
-    const currentPosts = db
-      .prepare(
-        `SELECT id, profile_id, platform, created_at, content, permalink,
-                impressions, engagements, video_views, reactions, comments,
-                shares, saves, clicks, emv
-         FROM posts
-         WHERE date(created_at) >= ? AND date(created_at) <= ?
-         ORDER BY created_at DESC`
-      )
-      .all(dateRange.start, dateRange.end) as PostRow[];
+    const currentPosts = await sql`
+      SELECT id, profile_id, platform, created_at::text, content, permalink,
+              impressions, engagements, video_views, reactions, comments,
+              shares, saves, clicks, emv
+      FROM posts
+      WHERE created_at::date >= ${dateRange.start} AND created_at::date <= ${dateRange.end}
+      ORDER BY created_at DESC
+    ` as PostRow[];
 
     // Fetch posts for previous period
-    const previousPosts = db
-      .prepare(
-        `SELECT id, profile_id, platform, created_at, content, permalink,
-                impressions, engagements, video_views, reactions, comments,
-                shares, saves, clicks, emv
-         FROM posts
-         WHERE date(created_at) >= ? AND date(created_at) <= ?
-         ORDER BY created_at DESC`
-      )
-      .all(previousDateRange.start, previousDateRange.end) as PostRow[];
+    const previousPosts = await sql`
+      SELECT id, profile_id, platform, created_at::text, content, permalink,
+              impressions, engagements, video_views, reactions, comments,
+              shares, saves, clicks, emv
+      FROM posts
+      WHERE created_at::date >= ${previousDateRange.start} AND created_at::date <= ${previousDateRange.end}
+      ORDER BY created_at DESC
+    ` as PostRow[];
 
     const posts = currentPosts.map(mapRowToPostMetrics);
     const prevPosts = previousPosts.map(mapRowToPostMetrics);

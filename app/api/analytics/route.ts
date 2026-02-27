@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getMockDailyMetrics, getMockPosts, getMockLastUpdated } from '@/lib/mock-data';
 import { buildDashboardData } from '@/lib/data-processing';
-import { getDb, getLastRefreshTime } from '@/lib/db';
-import type { DailyProfileMetrics, PostMetrics, PlatformId } from '@/lib/types';
+import { sql, getLastRefreshTime } from '@/lib/db';
+import type { DailyProfileMetrics, PostMetrics } from '@/lib/types';
 
 export const runtime = 'nodejs';
 
@@ -18,14 +18,11 @@ export async function GET() {
       return NextResponse.json(data);
     }
 
-    // Live data: read from SQLite cache
-    const db = getDb();
-    const lastUpdated = getLastRefreshTime();
+    // Live data: read from Neon Postgres
+    const lastUpdated = await getLastRefreshTime();
 
     // Check if we have any data
-    const countRow = db
-      .prepare('SELECT COUNT(*) as count FROM daily_metrics')
-      .get() as { count: number };
+    const [countRow] = await sql`SELECT COUNT(*) as count FROM daily_metrics`;
 
     if (countRow.count === 0) {
       return NextResponse.json(
@@ -38,51 +35,47 @@ export async function GET() {
     }
 
     // Read all daily metrics from cache
-    const dailyRows = db
-      .prepare(
-        `SELECT
-          dm.date,
-          dm.platform,
-          dm.profile_id as profileId,
-          dm.impressions,
-          dm.engagements,
-          dm.reactions,
-          dm.comments,
-          dm.shares,
-          dm.saves,
-          dm.video_views as videoViews,
-          dm.clicks,
-          dm.followers,
-          dm.follower_growth as followerGrowth,
-          dm.posts_published as postsPublished
-        FROM daily_metrics dm
-        ORDER BY dm.date ASC`
-      )
-      .all() as DailyProfileMetrics[];
+    const dailyRows = await sql`
+      SELECT
+        dm.date::text,
+        dm.platform,
+        dm.profile_id as "profileId",
+        dm.impressions,
+        dm.engagements,
+        dm.reactions,
+        dm.comments,
+        dm.shares,
+        dm.saves,
+        dm.video_views as "videoViews",
+        dm.clicks,
+        dm.followers,
+        dm.follower_growth as "followerGrowth",
+        dm.posts_published as "postsPublished"
+      FROM daily_metrics dm
+      ORDER BY dm.date ASC
+    ` as DailyProfileMetrics[];
 
     // Read all posts from cache
-    const postRows = db
-      .prepare(
-        `SELECT
-          p.id,
-          p.platform,
-          p.profile_id as profileId,
-          p.created_at as createdAt,
-          p.content,
-          p.permalink,
-          p.impressions,
-          p.engagements,
-          p.video_views as videoViews,
-          p.reactions,
-          p.comments,
-          p.shares,
-          p.saves,
-          p.clicks,
-          p.emv
-        FROM posts p
-        ORDER BY p.engagements DESC`
-      )
-      .all() as PostMetrics[];
+    const postRows = await sql`
+      SELECT
+        p.id,
+        p.platform,
+        p.profile_id as "profileId",
+        p.created_at::text as "createdAt",
+        p.content,
+        p.permalink,
+        p.impressions,
+        p.engagements,
+        p.video_views as "videoViews",
+        p.reactions,
+        p.comments,
+        p.shares,
+        p.saves,
+        p.clicks,
+        p.emv
+      FROM posts p
+      ORDER BY p.engagements DESC
+    ` as PostMetrics[];
 
     // Build the full dashboard payload using the existing processing pipeline
     const data = buildDashboardData(

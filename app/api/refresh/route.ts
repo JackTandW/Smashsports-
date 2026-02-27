@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSproutClient } from '@/lib/sprout-api';
 import type { SproutPostRow, SproutProfileAnalyticsRow } from '@/lib/sprout-api';
-import { getDb, logRefreshStart, logRefreshComplete } from '@/lib/db';
+import { sql, logRefreshStart, logRefreshComplete } from '@/lib/db';
 import { calculateEMV } from '@/lib/emv-calculator';
 import type { PlatformId, SproutProfile } from '@/lib/types';
 import platformsConfig from '@/config/platforms.json';
@@ -82,7 +82,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const refreshId = logRefreshStart();
+  const refreshId = await logRefreshStart();
   let recordsUpdated = 0;
 
   try {
@@ -97,7 +97,7 @@ export async function POST(request: Request) {
     console.log(`[Refresh] ${relevantProfiles.length} profiles match configured platforms`);
 
     if (relevantProfiles.length === 0) {
-      logRefreshComplete(refreshId, 'completed', 0);
+      await logRefreshComplete(refreshId, 'completed', 0);
       return NextResponse.json({
         status: 'completed',
         message: 'No matching profiles found. Check platform configuration.',
@@ -109,31 +109,22 @@ export async function POST(request: Request) {
       });
     }
 
-    const db = getDb();
-
     // 2. Upsert profiles
-    const upsertProfile = db.prepare(`
-      INSERT INTO profiles (customer_profile_id, platform, name, handle, native_id)
-      VALUES (?, ?, ?, ?, ?)
-      ON CONFLICT(customer_profile_id) DO UPDATE SET
-        platform = excluded.platform,
-        name = excluded.name,
-        handle = excluded.handle,
-        native_id = excluded.native_id,
-        updated_at = CURRENT_TIMESTAMP
-    `);
-
     const profileMap = new Map<number, { platform: PlatformId; profile: SproutProfile }>();
 
     for (const p of relevantProfiles) {
       const platform = toPlatformId(p.network_type)!;
-      upsertProfile.run(
-        p.customer_profile_id,
-        platform,
-        p.name,
-        p.native_name ?? p.name,
-        p.native_id
-      );
+      const handle = p.native_name ?? p.name;
+      await sql`
+        INSERT INTO profiles (customer_profile_id, platform, name, handle, native_id)
+        VALUES (${p.customer_profile_id}, ${platform}, ${p.name}, ${handle}, ${p.native_id})
+        ON CONFLICT(customer_profile_id) DO UPDATE SET
+          platform = EXCLUDED.platform,
+          name = EXCLUDED.name,
+          handle = EXCLUDED.handle,
+          native_id = EXCLUDED.native_id,
+          updated_at = CURRENT_TIMESTAMP
+      `;
       profileMap.set(p.customer_profile_id, { platform, profile: p });
     }
     console.log(`[Refresh] Upserted ${relevantProfiles.length} profiles`);
@@ -154,65 +145,56 @@ export async function POST(request: Request) {
       PROFILE_METRICS
     );
 
-    // 4. Upsert daily metrics
-    const upsertDailyMetric = db.prepare(`
-      INSERT INTO daily_metrics (
-        profile_id, platform, date, impressions, engagements,
-        reactions, comments, shares, saves, video_views,
-        clicks, followers, follower_growth, posts_published
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(profile_id, date) DO UPDATE SET
-        impressions = excluded.impressions,
-        engagements = excluded.engagements,
-        reactions = excluded.reactions,
-        comments = excluded.comments,
-        shares = excluded.shares,
-        saves = excluded.saves,
-        video_views = excluded.video_views,
-        clicks = excluded.clicks,
-        followers = excluded.followers,
-        follower_growth = excluded.follower_growth,
-        posts_published = excluded.posts_published
-    `);
+    // 4. Upsert daily metrics (batch via transaction)
+    const dailyMetricQueries = [];
+    for (const row of analyticsRows) {
+      const profileId = row.dimensions.customer_profile_id;
+      const date = row.dimensions['reporting_period.by(day)'];
+      const entry = profileMap.get(profileId);
+      if (!entry) continue;
 
-    const upsertDailyMetrics = db.transaction(
-      (rows: SproutProfileAnalyticsRow[]) => {
-        for (const row of rows) {
-          const profileId = row.dimensions.customer_profile_id;
-          const date = row.dimensions['reporting_period.by(day)'];
-          const entry = profileMap.get(profileId);
-          if (!entry) continue;
+      const m = row.metrics;
+      const reactions = m.reactions ?? 0;
+      const comments = m.comments ?? 0;
+      const shares = m.shares ?? 0;
+      const saves = m.saves ?? 0;
+      const clicks = m.post_clicks ?? 0;
+      const engagements = reactions + comments + shares + saves + clicks;
+      const impressions = m.impressions ?? 0;
+      const videoViews = m.video_views ?? 0;
+      const followers = m['lifetime_snapshot.followers_count'] ?? 0;
+      const followerGrowth = m.net_follower_growth ?? 0;
+      const postsPublished = m.posts_sent_count ?? 0;
 
-          const m = row.metrics;
-          const reactions = m.reactions ?? 0;
-          const comments = m.comments ?? 0;
-          const shares = m.shares ?? 0;
-          const saves = m.saves ?? 0;
-          const clicks = m.post_clicks ?? 0;
-          const engagements = reactions + comments + shares + saves + clicks;
+      dailyMetricQueries.push(sql`
+        INSERT INTO daily_metrics (
+          profile_id, platform, date, impressions, engagements,
+          reactions, comments, shares, saves, video_views,
+          clicks, followers, follower_growth, posts_published
+        ) VALUES (
+          ${profileId}, ${entry.platform}, ${date}, ${impressions}, ${engagements},
+          ${reactions}, ${comments}, ${shares}, ${saves}, ${videoViews},
+          ${clicks}, ${followers}, ${followerGrowth}, ${postsPublished}
+        )
+        ON CONFLICT(profile_id, date) DO UPDATE SET
+          impressions = EXCLUDED.impressions,
+          engagements = EXCLUDED.engagements,
+          reactions = EXCLUDED.reactions,
+          comments = EXCLUDED.comments,
+          shares = EXCLUDED.shares,
+          saves = EXCLUDED.saves,
+          video_views = EXCLUDED.video_views,
+          clicks = EXCLUDED.clicks,
+          followers = EXCLUDED.followers,
+          follower_growth = EXCLUDED.follower_growth,
+          posts_published = EXCLUDED.posts_published
+      `);
+      recordsUpdated++;
+    }
 
-          upsertDailyMetric.run(
-            profileId,
-            entry.platform,
-            date,
-            m.impressions ?? 0,
-            engagements,
-            reactions,
-            comments,
-            shares,
-            saves,
-            m.video_views ?? 0,
-            clicks,
-            m['lifetime_snapshot.followers_count'] ?? 0,
-            m.net_follower_growth ?? 0,
-            m.posts_sent_count ?? 0
-          );
-          recordsUpdated++;
-        }
-      }
-    );
-
-    upsertDailyMetrics(analyticsRows);
+    if (dailyMetricQueries.length > 0) {
+      await sql.transaction(dailyMetricQueries);
+    }
     console.log(
       `[Refresh] Upserted ${analyticsRows.length} daily metric rows`
     );
@@ -229,90 +211,80 @@ export async function POST(request: Request) {
     );
     console.log(`[Refresh] Fetched ${allPosts.length} posts`);
 
-    // 6. Upsert posts
-    const upsertPost = db.prepare(`
-      INSERT INTO posts (
-        id, profile_id, platform, created_at, content, permalink,
-        impressions, engagements, video_views, reactions,
-        comments, shares, saves, clicks, emv
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
-        impressions = excluded.impressions,
-        engagements = excluded.engagements,
-        video_views = excluded.video_views,
-        reactions = excluded.reactions,
-        comments = excluded.comments,
-        shares = excluded.shares,
-        saves = excluded.saves,
-        clicks = excluded.clicks,
-        emv = excluded.emv,
-        cached_at = CURRENT_TIMESTAMP
-    `);
+    // 6. Upsert posts (batch via transaction)
+    const postQueries = [];
+    for (const post of allPosts) {
+      // customer_profile_id comes back as a string from post analytics
+      const profileIdRaw = post.customer_profile_id;
+      if (!profileIdRaw) continue;
+      const profileId = typeof profileIdRaw === 'string' ? Number(profileIdRaw) : profileIdRaw;
 
-    const upsertPosts = db.transaction((posts: SproutPostRow[]) => {
-      for (const post of posts) {
-        // customer_profile_id comes back as a string from post analytics
-        const profileIdRaw = post.customer_profile_id;
-        if (!profileIdRaw) continue;
-        const profileId = typeof profileIdRaw === 'string' ? Number(profileIdRaw) : profileIdRaw;
+      const entry = profileMap.get(profileId);
+      if (!entry) continue;
 
-        const entry = profileMap.get(profileId);
-        if (!entry) continue;
+      const platform = entry.platform;
+      const m = post.metrics ?? {};
 
-        const platform = entry.platform;
-        const m = post.metrics ?? {};
+      const reactions = m['lifetime.reactions'] ?? 0;
+      const commentsCount = m['lifetime.comments_count'] ?? 0;
+      const sharesCount = m['lifetime.shares_count'] ?? 0;
+      const savesCount = 0; // C-02: saves not available at post level (only in daily profile analytics)
+      const clicksCount = m['lifetime.post_content_clicks'] ?? 0; // C-03: only X/FB return clicks
+      const rawImpressions = m['lifetime.impressions'] ?? 0;
+      // C-01: YouTube impressions are always 0 via Sprout — use views as proxy
+      const impressions = rawImpressions === 0 && platform === 'youtube'
+        ? (m['lifetime.views'] ?? m['lifetime.video_views'] ?? 0)
+        : rawImpressions;
+      const videoViews = m['lifetime.video_views'] ?? m['lifetime.views'] ?? 0;
+      const engagements = reactions + commentsCount + sharesCount + savesCount + clicksCount;
 
-        const reactions = m['lifetime.reactions'] ?? 0;
-        const commentsCount = m['lifetime.comments_count'] ?? 0;
-        const sharesCount = m['lifetime.shares_count'] ?? 0;
-        const savesCount = 0; // C-02: saves not available at post level (only in daily profile analytics)
-        const clicksCount = m['lifetime.post_content_clicks'] ?? 0; // C-03: only X/FB return clicks
-        const rawImpressions = m['lifetime.impressions'] ?? 0;
-        // C-01: YouTube impressions are always 0 via Sprout — use views as proxy
-        const impressions = rawImpressions === 0 && platform === 'youtube'
-          ? (m['lifetime.views'] ?? m['lifetime.video_views'] ?? 0)
-          : rawImpressions;
-        const videoViews = m['lifetime.video_views'] ?? m['lifetime.views'] ?? 0;
-        const engagements = reactions + commentsCount + sharesCount + savesCount + clicksCount;
+      // Calculate EMV using the standard calculator
+      const emv = calculateEMV(platform, {
+        views: videoViews,
+        impressions,
+        likes: reactions,
+        comments: commentsCount,
+        shares: sharesCount,
+        saves: savesCount,
+        clicks: clicksCount,
+      });
 
-        // Calculate EMV using the standard calculator
-        const emv = calculateEMV(platform, {
-          views: videoViews,
-          impressions,
-          likes: reactions,
-          comments: commentsCount,
-          shares: sharesCount,
-          saves: savesCount,
-          clicks: clicksCount,
-        });
+      const postId = post.guid ?? `${platform}-${post.created_time}-${profileId}`;
+      const content = (post.text ?? '').substring(0, 500);
+      const createdAt = post.created_time ?? '';
+      const permalink = post.perma_link ?? '';
 
-        const postId = post.guid ?? `${platform}-${post.created_time}-${profileId}`;
+      postQueries.push(sql`
+        INSERT INTO posts (
+          id, profile_id, platform, created_at, content, permalink,
+          impressions, engagements, video_views, reactions,
+          comments, shares, saves, clicks, emv
+        ) VALUES (
+          ${postId}, ${profileId}, ${platform}, ${createdAt}, ${content}, ${permalink},
+          ${impressions}, ${engagements}, ${videoViews}, ${reactions},
+          ${commentsCount}, ${sharesCount}, ${savesCount}, ${clicksCount}, ${emv}
+        )
+        ON CONFLICT(id) DO UPDATE SET
+          impressions = EXCLUDED.impressions,
+          engagements = EXCLUDED.engagements,
+          video_views = EXCLUDED.video_views,
+          reactions = EXCLUDED.reactions,
+          comments = EXCLUDED.comments,
+          shares = EXCLUDED.shares,
+          saves = EXCLUDED.saves,
+          clicks = EXCLUDED.clicks,
+          emv = EXCLUDED.emv,
+          cached_at = CURRENT_TIMESTAMP
+      `);
+      recordsUpdated++;
+    }
 
-        upsertPost.run(
-          postId,
-          profileId,
-          platform,
-          post.created_time ?? '',
-          (post.text ?? '').substring(0, 500),
-          post.perma_link ?? '',
-          impressions,
-          engagements,
-          videoViews,
-          reactions,
-          commentsCount,
-          sharesCount,
-          savesCount,
-          clicksCount,
-          emv
-        );
-        recordsUpdated++;
-      }
-    });
-
-    upsertPosts(allPosts);
+    if (postQueries.length > 0) {
+      await sql.transaction(postQueries);
+    }
     console.log(`[Refresh] Upserted ${allPosts.length} posts`);
 
-    logRefreshComplete(refreshId, 'completed', recordsUpdated);
+    await logRefreshComplete(refreshId, 'completed', recordsUpdated);
 
     return NextResponse.json({
       status: 'completed',
@@ -330,7 +302,7 @@ export async function POST(request: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error('[Refresh] Error:', message);
-    logRefreshComplete(refreshId, 'failed', recordsUpdated, message);
+    await logRefreshComplete(refreshId, 'failed', recordsUpdated, message);
 
     return NextResponse.json(
       {
