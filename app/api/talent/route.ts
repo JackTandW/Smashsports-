@@ -105,6 +105,16 @@ export async function GET(request: NextRequest) {
     const dateRange = getDateRange(range);
     const previousRange = getPreviousDateRange(dateRange);
 
+    // ── Mock-data path (Vercel / demo) ──
+    if (process.env.USE_MOCK_DATA === 'true') {
+      const { getMockTalentPosts } = await import('@/lib/mock-data');
+      const all = getMockTalentPosts();
+      const posts = all.filter((p) => p.createdAt >= `${dateRange.start}T00:00:00` && p.createdAt <= `${dateRange.end}T23:59:59`);
+      const prevPosts = all.filter((p) => p.createdAt >= `${previousRange.start}T00:00:00` && p.createdAt <= `${previousRange.end}T23:59:59`);
+      const data = buildTalentOverviewPayload(posts, prevPosts, dateRange);
+      return NextResponse.json(data);
+    }
+
     const db = getDb();
 
     const sql = `

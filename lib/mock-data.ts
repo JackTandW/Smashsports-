@@ -264,3 +264,111 @@ export function getMockLastUpdated(): string {
   now.setHours(now.getHours() - 2); // 2 hours ago
   return now.toISOString();
 }
+
+// ─── DailyMetricRow conversion (for weekly / current-week mock paths) ────
+
+export interface MockDailyMetricRow {
+  date: string;
+  platform: string;
+  impressions: number;
+  engagements: number;
+  reactions: number;
+  comments: number;
+  shares: number;
+  saves: number;
+  video_views: number;
+  clicks: number;
+  followers: number;
+  follower_growth: number;
+  posts_published: number;
+}
+
+/** Convert DailyProfileMetrics → SQL-row format used by processing functions */
+export function getMockDailyMetricRows(): MockDailyMetricRow[] {
+  return getMockDailyMetrics().map((d) => ({
+    date: d.date,
+    platform: d.platform,
+    impressions: d.impressions,
+    engagements: d.engagements,
+    reactions: d.reactions,
+    comments: d.comments,
+    shares: d.shares,
+    saves: d.saves,
+    video_views: d.videoViews,
+    clicks: d.clicks,
+    followers: d.followers,
+    follower_growth: d.followerGrowth,
+    posts_published: d.postsPublished,
+  }));
+}
+
+// ─── Mock talent posts (for talent mock path) ────
+
+import { getTalentConfigs } from './talent-config';
+import { enrichTalentPostsWithShows } from './talent-attribution';
+import type { TalentPost } from './talent-types';
+
+let cachedTalentPosts: TalentPost[] | null = null;
+
+export function getMockTalentPosts(): TalentPost[] {
+  if (cachedTalentPosts) return cachedTalentPosts;
+
+  const rand = seededRandom(77);
+  const talents = getTalentConfigs();
+  const platforms: PlatformId[] = ['youtube', 'instagram', 'tiktok', 'x', 'facebook'];
+  const posts: TalentPost[] = [];
+
+  for (const talent of talents) {
+    const postCount = 15 + Math.floor(rand() * 20);
+    for (let i = 0; i < postCount; i++) {
+      const platform = platforms[Math.floor(rand() * platforms.length)];
+      const daysAgo = Math.floor(rand() * 90);
+      const date = new Date();
+      date.setDate(date.getDate() - daysAgo);
+
+      const base = PLATFORM_BASELINES[platform];
+      const factor = (0.3 + rand() * 2.0) * (rand() < 0.05 ? 4 : 1);
+      const impressions = Math.round(base.dailyImpressions * factor * 0.5);
+      const videoViews = Math.round(base.dailyViews * factor * 0.6);
+      const engagements = Math.round(base.dailyEngagements * factor * 0.4);
+      const reactions = Math.round(engagements * 0.55);
+      const comments = Math.round(engagements * 0.15);
+      const shares = Math.round(engagements * 0.12);
+      const saves = Math.round(engagements * 0.08);
+      const content = MOCK_POST_CONTENT[Math.floor(rand() * MOCK_POST_CONTENT.length)];
+
+      const emv = calculateEMV(platform, {
+        views: videoViews,
+        impressions,
+        likes: reactions,
+        comments,
+        shares,
+        saves,
+        clicks: 0,
+      });
+
+      posts.push({
+        id: `mock-tp-${talent.id}-${i}`,
+        talentId: talent.id,
+        platform,
+        createdAt: date.toISOString(),
+        content,
+        permalink: `https://example.com/${platform}/${talent.id}/${i}`,
+        impressions,
+        engagements,
+        videoViews,
+        reactions,
+        comments,
+        shares,
+        saves,
+        emv,
+        showIds: [],
+      });
+    }
+  }
+
+  cachedTalentPosts = enrichTalentPostsWithShows(
+    posts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  );
+  return cachedTalentPosts;
+}

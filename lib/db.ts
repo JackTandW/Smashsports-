@@ -1,13 +1,23 @@
-import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 
 const DB_PATH = path.join(process.cwd(), 'db', 'smash-dashboard.sqlite');
 
-let db: Database.Database | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let db: any = null;
 
-export function getDb(): Database.Database {
+/**
+ * Lazily open (or return the cached) SQLite connection.
+ * better-sqlite3 is loaded dynamically so that the native addon is
+ * never required at module-import time — this prevents Vercel serverless
+ * functions from crashing when the route uses USE_MOCK_DATA instead.
+ */
+export function getDb() {
   if (!db) {
+    // Dynamic require — only executed when live DB is actually needed
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const Database = require('better-sqlite3');
+
     const dir = path.dirname(DB_PATH);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
@@ -25,7 +35,7 @@ export function getDb(): Database.Database {
 
     // M-07: Add duration_ms column to refresh_log if not present
     const cols = db.prepare("PRAGMA table_info('refresh_log')").all() as { name: string }[];
-    if (!cols.some((c) => c.name === 'duration_ms')) {
+    if (!cols.some((c: { name: string }) => c.name === 'duration_ms')) {
       db.exec('ALTER TABLE refresh_log ADD COLUMN duration_ms INTEGER');
     }
   }
@@ -33,8 +43,8 @@ export function getDb(): Database.Database {
 }
 
 export function getLastRefreshTime(): string | null {
-  const db = getDb();
-  const row = db
+  const d = getDb();
+  const row = d
     .prepare(
       `SELECT completed_at FROM refresh_log
        WHERE status = 'completed'
@@ -45,8 +55,8 @@ export function getLastRefreshTime(): string | null {
 }
 
 export function logRefreshStart(): number {
-  const db = getDb();
-  const result = db
+  const d = getDb();
+  const result = d
     .prepare(
       `INSERT INTO refresh_log (started_at, status) VALUES (datetime('now'), 'running')`
     )
@@ -60,9 +70,9 @@ export function logRefreshComplete(
   recordsUpdated: number,
   error?: string
 ): void {
-  const db = getDb();
+  const d = getDb();
   // M-07: Track duration in seconds alongside completion
-  db.prepare(
+  d.prepare(
     `UPDATE refresh_log
      SET completed_at = datetime('now'),
          status = ?,
@@ -84,8 +94,8 @@ export interface RefreshStatus {
 }
 
 export function getRefreshStatus(): RefreshStatus {
-  const db = getDb();
-  const row = db
+  const d = getDb();
+  const row = d
     .prepare(
       `SELECT completed_at, duration_ms FROM refresh_log
        WHERE status = 'completed'

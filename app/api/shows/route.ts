@@ -108,6 +108,16 @@ export async function GET(request: NextRequest) {
     const dateRange = getDateRange(rangeParam);
     const previousDateRange = getPreviousDateRange(dateRange);
 
+    // ── Mock-data path (Vercel / demo) ──
+    if (process.env.USE_MOCK_DATA === 'true') {
+      const { getMockPosts } = await import('@/lib/mock-data');
+      const all = getMockPosts();
+      const posts = all.filter((p) => p.createdAt >= `${dateRange.start}T00:00:00` && p.createdAt <= `${dateRange.end}T23:59:59`);
+      const prevPosts = all.filter((p) => p.createdAt >= `${previousDateRange.start}T00:00:00` && p.createdAt <= `${previousDateRange.end}T23:59:59`);
+      const payload = buildShowOverviewPayload(posts, prevPosts, dateRange);
+      return NextResponse.json(payload);
+    }
+
     const db = getDb();
 
     // Fetch posts for current period

@@ -40,6 +40,36 @@ const POSTS_QUERY = `
  */
 export async function GET() {
   try {
+    // ── Mock-data path (Vercel / demo) ──
+    if (process.env.USE_MOCK_DATA === 'true') {
+      const { getMockDailyMetricRows, getMockPosts } = await import('@/lib/mock-data');
+      const allDaily = getMockDailyMetricRows() as DailyMetricRow[];
+      const { weekStart, weekEnd } = getCurrentWeekRange();
+      const { weekStart: lastStart, weekEnd: lastEnd } = getPreviousWeek(weekStart);
+
+      const thisWeekDaily = allDaily.filter((r) => r.date >= weekStart && r.date <= weekEnd);
+      const lastWeekDaily = allDaily.filter((r) => r.date >= lastStart && r.date <= lastEnd);
+
+      const allPosts = getMockPosts();
+      const thisWeekPosts = allPosts.filter(
+        (p) => p.createdAt >= `${weekStart}T00:00:00` && p.createdAt <= `${weekEnd}T23:59:59`
+      );
+      const lastWeekPosts = allPosts.filter(
+        (p) => p.createdAt >= `${lastStart}T00:00:00` && p.createdAt <= `${lastEnd}T23:59:59`
+      );
+      const fourWeeksAgo = new Date(weekStart);
+      fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
+      const recentPosts = allPosts.filter(
+        (p) => p.createdAt >= `${fourWeeksAgo.toISOString().split('T')[0]}T00:00:00` && p.createdAt <= `${weekEnd}T23:59:59`
+      );
+
+      const data = buildCurrentWeekPayload(
+        thisWeekDaily, lastWeekDaily, thisWeekPosts, lastWeekPosts, recentPosts, [], null
+      );
+      return NextResponse.json(data);
+    }
+
+    // ── Live-data path (SQLite) ──
     const db = getDb();
     const { weekStart, weekEnd } = getCurrentWeekRange();
     const { weekStart: lastWeekStart, weekEnd: lastWeekEnd } = getPreviousWeek(weekStart);

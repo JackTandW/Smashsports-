@@ -123,6 +123,17 @@ export async function GET(
     const dateRange = getDateRange(rangeParam);
     const previousDateRange = getPreviousDateRange(dateRange);
 
+    // ── Mock-data path (Vercel / demo) ──
+    if (process.env.USE_MOCK_DATA === 'true') {
+      const { getMockPosts } = await import('@/lib/mock-data');
+      const all = getMockPosts();
+      const posts = all.filter((p) => p.createdAt >= `${dateRange.start}T00:00:00` && p.createdAt <= `${dateRange.end}T23:59:59`);
+      const prevPosts = all.filter((p) => p.createdAt >= `${previousDateRange.start}T00:00:00` && p.createdAt <= `${previousDateRange.end}T23:59:59`);
+      const payload = buildShowDrillDownPayload(showId, posts, prevPosts, dateRange);
+      if (!payload) return NextResponse.json({ error: `Show '${showId}' not found` }, { status: 404 });
+      return NextResponse.json(payload);
+    }
+
     const db = getDb();
 
     // Fetch posts for current period

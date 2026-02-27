@@ -12,6 +12,7 @@ import {
   buildSnapshotFromDailyMetrics,
   buildWeeklyComparison,
 } from '@/lib/weekly-data-processing';
+import { getMockDailyMetricRows, getMockPosts } from '@/lib/mock-data';
 
 export const runtime = 'nodejs';
 
@@ -25,6 +26,64 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const requestedWeekStart = searchParams.get('weekStart');
 
+    // ── Mock-data path (Vercel / demo) ──
+    if (process.env.USE_MOCK_DATA === 'true') {
+      const current = getCurrentWeek();
+      const weekStart = requestedWeekStart ?? current.weekStart;
+      const weekEndDate = new Date(weekStart);
+      weekEndDate.setDate(weekEndDate.getDate() + 6);
+      const weekEnd = weekEndDate.toISOString().split('T')[0];
+      const { weekStart: lastStart, weekEnd: lastEnd } = getPreviousWeek(weekStart);
+
+      const allRows = getMockDailyMetricRows() as DailyMetricRow[];
+      const thisRows = allRows.filter((r) => r.date >= weekStart && r.date <= weekEnd);
+      const lastRows = allRows.filter((r) => r.date >= lastStart && r.date <= lastEnd);
+
+      const thisSnap = buildSnapshotFromDailyMetrics(thisRows, weekStart, weekEnd);
+      const lastSnap = buildSnapshotFromDailyMetrics(lastRows, lastStart, lastEnd);
+
+      // Build 12 weeks of history
+      const historySnaps: WeeklySnapshotRow[] = [];
+      let cursor = new Date(weekStart);
+      for (let i = 0; i < 12; i++) {
+        const ws = cursor.toISOString().split('T')[0];
+        const we = new Date(cursor); we.setDate(we.getDate() + 6);
+        const weStr = we.toISOString().split('T')[0];
+        const rows = allRows.filter((r) => r.date >= ws && r.date <= weStr);
+        if (rows.length > 0) historySnaps.push(...buildSnapshotFromDailyMetrics(rows, ws, weStr));
+        cursor.setDate(cursor.getDate() - 7);
+      }
+
+      const posts = getMockPosts().filter(
+        (p) => p.createdAt >= `${weekStart}T00:00:00` && p.createdAt <= `${weekEnd}T23:59:59`
+      );
+
+      const now = new Date();
+      const sast = new Date(now.toLocaleString('en-US', { timeZone: 'Africa/Johannesburg' }));
+      const todayStr = sast.toISOString().split('T')[0];
+      const isPartial = todayStr >= weekStart && todayStr <= weekEnd;
+      const partialDays = isPartial
+        ? Math.floor((sast.getTime() - new Date(weekStart).getTime()) / 86400000) + 1
+        : 7;
+
+      const availableWeeks: { weekStart: string; weekEnd: string; label: string }[] = [];
+      let wk = new Date(weekStart);
+      for (let i = 0; i < 12; i++) {
+        const ws = wk.toISOString().split('T')[0];
+        const we2 = new Date(wk); we2.setDate(we2.getDate() + 6);
+        availableWeeks.push({ weekStart: ws, weekEnd: we2.toISOString().split('T')[0], label: formatWeekLabel(ws) });
+        wk.setDate(wk.getDate() - 7);
+      }
+
+      const data = buildWeeklyComparison(
+        thisSnap, lastSnap, historySnaps, posts,
+        weekStart, weekEnd, lastStart, lastEnd,
+        availableWeeks, isPartial, partialDays
+      );
+      return NextResponse.json(data);
+    }
+
+    // ── Live-data path (SQLite) ──
     const db = getDb();
 
     // Determine which week to show
