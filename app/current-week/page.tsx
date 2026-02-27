@@ -1,18 +1,10 @@
 import { CurrentWeekDashboardClient } from '@/components/current-week/CurrentWeekDashboardClient';
 import { ErrorState } from '@/components/ui/ErrorState';
-import { getBaseUrl } from '@/lib/utils';
+import { GET } from '@/app/api/current-week/route';
 import type { CurrentWeekData } from '@/lib/current-week-types';
 
 async function fetchCurrentWeekData(): Promise<CurrentWeekData> {
-  const baseUrl = getBaseUrl();
-  const res = await fetch(`${baseUrl}/api/current-week`, {
-    cache: 'no-store',
-  });
-
-  if (!res.ok) {
-    throw new Error(`Failed to fetch current week data: ${res.status}`);
-  }
-
+  const res = await GET();
   return res.json();
 }
 

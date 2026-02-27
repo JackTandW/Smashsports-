@@ -1,8 +1,9 @@
 import { notFound } from 'next/navigation';
+import { NextRequest } from 'next/server';
 import { ShowDrillDown } from '@/components/shows/ShowDrillDown';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { getShowConfig } from '@/lib/show-attribution';
-import { getBaseUrl } from '@/lib/utils';
+import { GET } from '@/app/api/shows/[showId]/route';
 import type { ShowDrillDownData } from '@/lib/show-types';
 
 interface ShowDetailPageProps {
@@ -10,17 +11,13 @@ interface ShowDetailPageProps {
 }
 
 async function fetchShowData(showId: string): Promise<ShowDrillDownData> {
-  const baseUrl = getBaseUrl();
-  const res = await fetch(`${baseUrl}/api/shows/${showId}?range=4w`, {
-    cache: 'no-store',
-  });
+  const res = await GET(
+    new NextRequest(`http://localhost/api/shows/${showId}?range=4w`),
+    { params: Promise.resolve({ showId }) }
+  );
 
   if (res.status === 404) {
     notFound();
-  }
-
-  if (!res.ok) {
-    throw new Error(`Failed to fetch show data: ${res.status}`);
   }
 
   return res.json();

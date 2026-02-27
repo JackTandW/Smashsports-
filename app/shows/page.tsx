@@ -1,19 +1,12 @@
 import { ShowsDashboardClient } from '@/components/shows/ShowsDashboardClient';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { getShowConfigs } from '@/lib/show-attribution';
-import { getBaseUrl } from '@/lib/utils';
+import { NextRequest } from 'next/server';
+import { GET } from '@/app/api/shows/route';
 import type { ShowOverviewData } from '@/lib/show-types';
 
 async function fetchShowsData(): Promise<ShowOverviewData> {
-  const baseUrl = getBaseUrl();
-  const res = await fetch(`${baseUrl}/api/shows?range=4w`, {
-    cache: 'no-store',
-  });
-
-  if (!res.ok) {
-    throw new Error(`Failed to fetch shows data: ${res.status}`);
-  }
-
+  const res = await GET(new NextRequest('http://localhost/api/shows?range=4w'));
   return res.json();
 }
 

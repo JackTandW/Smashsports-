@@ -1,18 +1,10 @@
 import { DashboardClient } from '@/components/layout/DashboardClient';
 import { ErrorState } from '@/components/ui/ErrorState';
-import { getBaseUrl } from '@/lib/utils';
+import { GET } from '@/app/api/analytics/route';
 import type { DashboardData } from '@/lib/types';
 
 async function fetchDashboardData(): Promise<DashboardData> {
-  const baseUrl = getBaseUrl();
-  const res = await fetch(`${baseUrl}/api/analytics`, {
-    cache: 'no-store',
-  });
-
-  if (!res.ok) {
-    throw new Error(`Failed to fetch analytics: ${res.status}`);
-  }
-
+  const res = await GET();
   return res.json();
 }
 

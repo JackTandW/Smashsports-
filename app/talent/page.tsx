@@ -1,18 +1,11 @@
 import { TalentDashboardClient } from '@/components/talent/TalentDashboardClient';
 import { ErrorState } from '@/components/ui/ErrorState';
-import { getBaseUrl } from '@/lib/utils';
+import { NextRequest } from 'next/server';
+import { GET } from '@/app/api/talent/route';
 import type { TalentOverviewData } from '@/lib/talent-types';
 
 async function fetchTalentData(): Promise<TalentOverviewData> {
-  const baseUrl = getBaseUrl();
-  const res = await fetch(`${baseUrl}/api/talent?range=4w`, {
-    cache: 'no-store',
-  });
-
-  if (!res.ok) {
-    throw new Error(`Failed to fetch talent data: ${res.status}`);
-  }
-
+  const res = await GET(new NextRequest('http://localhost/api/talent?range=4w'));
   return res.json();
 }
 

@@ -1,8 +1,9 @@
 import { notFound } from 'next/navigation';
+import { NextRequest } from 'next/server';
 import { TalentDrillDown } from '@/components/talent/TalentDrillDown';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { getTalentConfig } from '@/lib/talent-config';
-import { getBaseUrl } from '@/lib/utils';
+import { GET } from '@/app/api/talent/[talentId]/route';
 import type { TalentDrillDownData } from '@/lib/talent-types';
 
 interface TalentDetailPageProps {
@@ -10,17 +11,13 @@ interface TalentDetailPageProps {
 }
 
 async function fetchTalentData(talentId: string): Promise<TalentDrillDownData> {
-  const baseUrl = getBaseUrl();
-  const res = await fetch(`${baseUrl}/api/talent/${talentId}?range=4w`, {
-    cache: 'no-store',
-  });
+  const res = await GET(
+    new NextRequest(`http://localhost/api/talent/${talentId}?range=4w`),
+    { params: Promise.resolve({ talentId }) }
+  );
 
   if (res.status === 404) {
     notFound();
-  }
-
-  if (!res.ok) {
-    throw new Error(`Failed to fetch talent data: ${res.status}`);
   }
 
   return res.json();

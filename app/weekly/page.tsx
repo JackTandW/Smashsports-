@@ -1,18 +1,10 @@
 import { WeeklyDashboardClient } from '@/components/weekly/WeeklyDashboardClient';
 import { ErrorState } from '@/components/ui/ErrorState';
-import { getBaseUrl } from '@/lib/utils';
+import { GET } from '@/app/api/weekly/route';
 import type { WeeklyComparisonData } from '@/lib/weekly-types';
 
 async function fetchWeeklyData(): Promise<WeeklyComparisonData> {
-  const baseUrl = getBaseUrl();
-  const res = await fetch(`${baseUrl}/api/weekly`, {
-    cache: 'no-store',
-  });
-
-  if (!res.ok) {
-    throw new Error(`Failed to fetch weekly data: ${res.status}`);
-  }
-
+  const res = await GET(new Request('http://localhost/api/weekly'));
   return res.json();
 }
 
