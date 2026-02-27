@@ -1,0 +1,25 @@
+{
+  "refreshIntervalHours": 24,
+  "freshnessThresholds": {
+    "amberHours": 26,
+    "redHours": 48
+  },
+  "anomalyDetection": {
+    "rollingWindowDays": 30,
+    "sigmaThreshold": 3,
+    "minimumDataDays": 14
+  },
+  "discrepancyThresholdPercent": 2,
+  "sparklineDays": 90,
+  "growthPeriodDays": 30,
+  "timezone": "Africa/Johannesburg",
+  "topPostsCount": 10,
+  "benchmarks": {
+    "engagementRate": {
+      "excellent": 5.0,
+      "good": 3.0,
+      "average": 1.5,
+      "poor": 0.5
+    }
+  }
+}

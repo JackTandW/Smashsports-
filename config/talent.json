@@ -1,0 +1,203 @@
+{
+  "brandHashtags": ["smashsports", "smashnews", "smash"],
+  "hashtags_to_track": ["Big3", "bestofenemies", "Behindtheboot", "Betwayprem", "hottakes", "smashsports", "smashnews", "smash"],
+  "show_hashtags": ["Big3", "bestofenemies", "Behindtheboot", "Betwayprem", "hottakes"],
+  "brand_hashtags": ["smashsports", "smashnews", "smash"],
+  "talent": [
+    {
+      "id": "sky-shabalala",
+      "name": "Sky Shabalala",
+      "role": "Presenter",
+      "colour": "#4A90D9",
+      "accounts": {
+        "facebook": "https://www.facebook.com/sky.tshabalala",
+        "instagram": "https://www.instagram.com/skytshabalala/",
+        "x": "https://x.com/SkyTshabalala",
+        "tiktok": null,
+        "youtube": null
+      }
+    },
+    {
+      "id": "brighton-mclungu",
+      "name": "Brighton McLungu",
+      "role": "Talent",
+      "colour": "#2A9D8F",
+      "accounts": {
+        "facebook": null,
+        "instagram": "https://www.instagram.com/brighton_mhlongo1/",
+        "x": null,
+        "tiktok": null,
+        "youtube": null
+      }
+    },
+    {
+      "id": "mpo-mpo-boi",
+      "name": "Mpo Mpo Boi",
+      "role": "Presenter",
+      "colour": "#FF6B00",
+      "accounts": {
+        "facebook": null,
+        "instagram": "https://www.instagram.com/mphomaboi_/",
+        "x": null,
+        "tiktok": "https://www.tiktok.com/@mphomaboi_real",
+        "youtube": null
+      }
+    },
+    {
+      "id": "bbk",
+      "name": "BBK",
+      "role": "Talent",
+      "colour": "#9B59B6",
+      "accounts": {
+        "facebook": null,
+        "instagram": "https://www.instagram.com/bbkunplugged99/",
+        "x": "https://x.com/BBKUnplugged99",
+        "tiktok": null,
+        "youtube": null
+      }
+    },
+    {
+      "id": "papa-wawa",
+      "name": "Papa Wawa",
+      "role": "Talent",
+      "colour": "#1ABC9C",
+      "accounts": {
+        "facebook": null,
+        "instagram": "https://www.instagram.com/papawawagp20/",
+        "x": null,
+        "tiktok": "https://www.tiktok.com/@papawawagp",
+        "youtube": null
+      }
+    },
+    {
+      "id": "dedrick-shoots",
+      "name": "Dedrick Shoots",
+      "role": "Content Creator",
+      "colour": "#E74C3C",
+      "accounts": {
+        "facebook": null,
+        "instagram": "https://www.instagram.com/dedrickshoots/",
+        "x": null,
+        "tiktok": "https://www.tiktok.com/@dedrickshoots",
+        "youtube": null
+      }
+    },
+    {
+      "id": "tami-ramala",
+      "name": "Tami Ramala",
+      "role": "Presenter",
+      "colour": "#E63946",
+      "accounts": {
+        "facebook": "https://www.facebook.com/thami.ramaila",
+        "instagram": "https://www.instagram.com/thami.ramaila/",
+        "x": null,
+        "tiktok": null,
+        "youtube": null
+      }
+    },
+    {
+      "id": "ck-lindo",
+      "name": "C.K. Lindo",
+      "role": "Presenter",
+      "colour": "#F39C12",
+      "accounts": {
+        "facebook": null,
+        "instagram": "https://www.instagram.com/seekay_sa/",
+        "x": "https://x.com/seekay_sa",
+        "tiktok": "https://www.tiktok.com/@seekay_sa1",
+        "youtube": null
+      }
+    },
+    {
+      "id": "pep",
+      "name": "Pep",
+      "role": "Presenter",
+      "colour": "#3498DB",
+      "accounts": {
+        "facebook": null,
+        "instagram": "https://www.instagram.com/lindopep/",
+        "x": "https://x.com/Lindo_Pep",
+        "tiktok": "https://www.tiktok.com/@lindopep10",
+        "youtube": null
+      }
+    },
+    {
+      "id": "primo",
+      "name": "Primo",
+      "role": "Talent",
+      "colour": "#8E44AD",
+      "accounts": {
+        "facebook": null,
+        "instagram": "https://www.instagram.com/primo9teen/",
+        "x": null,
+        "tiktok": "https://www.tiktok.com/@primo9teen",
+        "youtube": null
+      }
+    },
+    {
+      "id": "trevor-gumby",
+      "name": "Trevor Gumby",
+      "role": "Talent",
+      "colour": "#D35400",
+      "accounts": {
+        "facebook": null,
+        "instagram": "https://www.instagram.com/trevorgumbi/",
+        "x": null,
+        "tiktok": null,
+        "youtube": null
+      }
+    },
+    {
+      "id": "finn",
+      "name": "Finn",
+      "role": "Content Creator",
+      "colour": "#27AE60",
+      "accounts": {
+        "facebook": "https://www.facebook.com/profile.php?id=100007622624822",
+        "instagram": "https://www.instagram.com/fynnterest/",
+        "x": null,
+        "tiktok": "https://www.tiktok.com/@fynnk_football",
+        "youtube": "https://www.youtube.com/@fynnkrausefootball"
+      }
+    },
+    {
+      "id": "linda-ntambo",
+      "name": "Linda Ntambo",
+      "role": "Talent",
+      "colour": "#C0392B",
+      "accounts": {
+        "facebook": null,
+        "instagram": "https://www.instagram.com/lindamntambo23/",
+        "x": null,
+        "tiktok": "https://www.tiktok.com/@lindamntambo23",
+        "youtube": null
+      }
+    },
+    {
+      "id": "bernhard-parker",
+      "name": "Bernhard Parker",
+      "role": "Talent",
+      "colour": "#2980B9",
+      "accounts": {
+        "facebook": null,
+        "instagram": "https://www.instagram.com/bernard_parker_25/",
+        "x": "https://x.com/BernardParker",
+        "tiktok": "https://www.tiktok.com/@bernardparker_25",
+        "youtube": null
+      }
+    },
+    {
+      "id": "ryan-liberty",
+      "name": "Ryan Liberty",
+      "role": "Talent",
+      "colour": "#7F8C8D",
+      "accounts": {
+        "facebook": null,
+        "instagram": "https://www.instagram.com/ryanmliberty/",
+        "x": null,
+        "tiktok": null,
+        "youtube": null
+      }
+    }
+  ]
+}

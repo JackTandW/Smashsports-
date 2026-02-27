@@ -1,0 +1,44 @@
+{
+  "shows": [
+    {
+      "id": "big-three",
+      "name": "Big 3",
+      "hashtags": ["big3", "bigthree", "thebig3"],
+      "keywords": ["big three", "big 3"],
+      "color": "#FF6B35",
+      "logoPath": "/logos/show-big-three.png"
+    },
+    {
+      "id": "best-enemies",
+      "name": "Best of Enemies",
+      "hashtags": ["bestofenemies", "boe"],
+      "keywords": ["best of enemies"],
+      "color": "#7B2FF7",
+      "logoPath": "/logos/show-best-enemies.png"
+    },
+    {
+      "id": "behind-boot",
+      "name": "Behind the Boot",
+      "hashtags": ["behindtheboot", "btb"],
+      "keywords": ["behind the boot"],
+      "color": "#00C9A7",
+      "logoPath": "/logos/show-behind-boot.png"
+    },
+    {
+      "id": "betway-prem",
+      "name": "Betway Prem",
+      "hashtags": ["betwayprem", "betwaypremiership"],
+      "keywords": ["betway prem", "betway premiership"],
+      "color": "#FFD700",
+      "logoPath": "/logos/betway-prem-preview.png"
+    },
+    {
+      "id": "hot-takes",
+      "name": "Hot Takes",
+      "hashtags": ["hottakes"],
+      "keywords": ["hot takes"],
+      "color": "#FF3366",
+      "logoPath": "/logos/show-hot-takes.png"
+    }
+  ]
+}

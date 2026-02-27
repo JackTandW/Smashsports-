@@ -1,0 +1,43 @@
+{
+  "currency": "ZAR",
+  "currencySymbol": "R",
+  "rates": {
+    "youtube": {
+      "view": 0.15,
+      "like": 0.50,
+      "comment": 2.00,
+      "share": 3.00,
+      "subscribe": 5.00
+    },
+    "instagram": {
+      "impression": 0.05,
+      "like": 0.35,
+      "comment": 1.50,
+      "share": 2.50,
+      "save": 2.00,
+      "storyView": 0.10,
+      "reelView": 0.12
+    },
+    "tiktok": {
+      "view": 0.08,
+      "like": 0.25,
+      "comment": 1.00,
+      "share": 2.00
+    },
+    "x": {
+      "impression": 0.03,
+      "like": 0.20,
+      "retweet": 1.50,
+      "reply": 1.00,
+      "click": 0.50
+    },
+    "facebook": {
+      "impression": 0.04,
+      "like": 0.30,
+      "comment": 1.20,
+      "share": 2.00,
+      "click": 0.40
+    }
+  },
+  "lastUpdated": "2026-02-24"
+}

@@ -1,0 +1,17 @@
+{
+  "growth": {
+    "biggest": "{platform} {metric} grew {percentage}% week-on-week, making it the standout platform this week."
+  },
+  "decline": {
+    "biggest": "{platform} {metric} dropped {percentage}% week-on-week.{context}"
+  },
+  "topPost": {
+    "best": "The top-performing post this week was on {platform}, generating {engagements} engagements: \"{preview}...\""
+  },
+  "anomaly": {
+    "detected": "{platform} engagements show an unusual {direction} ({deviations}\u03C3 from the 4-week average). Worth investigating the cause."
+  },
+  "recommendation": {
+    "engagement": "Consider adapting {strongPlatform}\u2019s content approach for {weakPlatform}, which currently has the lowest engagement rate at {rate}%."
+  }
+}
