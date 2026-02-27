@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
+import { getBaseUrl } from '@/lib/utils';
 import { getLastCompletedWeek, buildSnapshotFromDailyMetrics } from '@/lib/weekly-data-processing';
 import type { DailyMetricRow } from '@/lib/weekly-data-processing';
 import type { WeeklySnapshotRow } from '@/lib/weekly-types';
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Default: Trigger the same refresh logic as /api/refresh
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? 'http://localhost:3000';
+    const baseUrl = getBaseUrl();
     const response = await fetch(`${baseUrl}/api/refresh`, { method: 'POST' });
     const result = await response.json();
 

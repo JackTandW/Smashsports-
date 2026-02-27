@@ -1,9 +1,10 @@
 import { DashboardClient } from '@/components/layout/DashboardClient';
 import { ErrorState } from '@/components/ui/ErrorState';
+import { getBaseUrl } from '@/lib/utils';
 import type { DashboardData } from '@/lib/types';
 
 async function fetchDashboardData(): Promise<DashboardData> {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+  const baseUrl = getBaseUrl();
   const res = await fetch(`${baseUrl}/api/analytics`, {
     cache: 'no-store',
   });

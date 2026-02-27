@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { ShowDrillDown } from '@/components/shows/ShowDrillDown';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { getShowConfig } from '@/lib/show-attribution';
+import { getBaseUrl } from '@/lib/utils';
 import type { ShowDrillDownData } from '@/lib/show-types';
 
 interface ShowDetailPageProps {
@@ -9,7 +10,7 @@ interface ShowDetailPageProps {
 }
 
 async function fetchShowData(showId: string): Promise<ShowDrillDownData> {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+  const baseUrl = getBaseUrl();
   const res = await fetch(`${baseUrl}/api/shows/${showId}?range=4w`, {
     cache: 'no-store',
   });

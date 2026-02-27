@@ -1,10 +1,11 @@
 import { ShowsDashboardClient } from '@/components/shows/ShowsDashboardClient';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { getShowConfigs } from '@/lib/show-attribution';
+import { getBaseUrl } from '@/lib/utils';
 import type { ShowOverviewData } from '@/lib/show-types';
 
 async function fetchShowsData(): Promise<ShowOverviewData> {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+  const baseUrl = getBaseUrl();
   const res = await fetch(`${baseUrl}/api/shows?range=4w`, {
     cache: 'no-store',
   });

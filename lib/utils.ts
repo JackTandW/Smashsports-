@@ -1,6 +1,22 @@
 import type { PlatformId, PlatformConfig } from './types';
 import platformsConfig from '@/config/platforms.json';
 
+// ─── Base URL (works on Vercel + localhost) ──────────────
+
+/**
+ * Resolve the app base URL for server-side fetches.
+ * Vercel auto-provides VERCEL_URL (e.g. "my-app-abc.vercel.app").
+ * Falls back to NEXT_PUBLIC_BASE_URL, then localhost for dev.
+ */
+export function getBaseUrl(): string {
+  // Explicit override always wins
+  if (process.env.NEXT_PUBLIC_BASE_URL) return process.env.NEXT_PUBLIC_BASE_URL;
+  // Vercel auto-sets this on every deployment
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  // Local dev
+  return 'http://localhost:3000';
+}
+
 // ─── Shared Helpers ──────────────────────────────────────
 
 /**

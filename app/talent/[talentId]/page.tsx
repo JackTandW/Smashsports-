@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { TalentDrillDown } from '@/components/talent/TalentDrillDown';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { getTalentConfig } from '@/lib/talent-config';
+import { getBaseUrl } from '@/lib/utils';
 import type { TalentDrillDownData } from '@/lib/talent-types';
 
 interface TalentDetailPageProps {
@@ -9,7 +10,7 @@ interface TalentDetailPageProps {
 }
 
 async function fetchTalentData(talentId: string): Promise<TalentDrillDownData> {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+  const baseUrl = getBaseUrl();
   const res = await fetch(`${baseUrl}/api/talent/${talentId}?range=4w`, {
     cache: 'no-store',
   });
