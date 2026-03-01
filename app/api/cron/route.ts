@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
-import { getBaseUrl } from '@/lib/utils';
+import { POST as refreshPOST } from '@/app/api/refresh/route';
 import { getLastCompletedWeek, buildSnapshotFromDailyMetrics } from '@/lib/weekly-data-processing';
 import type { DailyMetricRow } from '@/lib/weekly-data-processing';
 import type { WeeklySnapshotRow } from '@/lib/weekly-types';
@@ -24,9 +24,8 @@ export async function GET(request: NextRequest) {
       return await handleWeekTransition();
     }
 
-    // Default: Trigger the same refresh logic as /api/refresh
-    const baseUrl = getBaseUrl();
-    const response = await fetch(`${baseUrl}/api/refresh`, { method: 'POST' });
+    // Default: Trigger the same refresh logic as /api/refresh (call directly)
+    const response = await refreshPOST(new Request('http://localhost/api/refresh'));
     const result = await response.json();
 
     return NextResponse.json({

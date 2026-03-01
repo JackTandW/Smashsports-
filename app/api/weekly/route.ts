@@ -149,13 +149,28 @@ export async function GET(request: Request) {
       ? Math.floor((sast.getTime() - new Date(thisWeekStart).getTime()) / (24 * 60 * 60 * 1000)) + 1
       : 7;
 
-    // Try to get data from weekly_snapshots first
-    let thisWeekRows = await sql`
-      SELECT week_start::text, week_end::text, platform, views, impressions,
-             engagements, engagement_rate, posts_count, followers_start, followers_end,
-             follower_growth, emv_total, emv_views, emv_likes, emv_comments, emv_shares, emv_other
-      FROM weekly_snapshots WHERE week_start = ${thisWeekStart}
-    ` as WeeklySnapshotRow[];
+    // For the current (partial) week, ALWAYS recompute from daily_metrics
+    // so data stays fresh. For past weeks, use the cached snapshot.
+    let thisWeekRows: WeeklySnapshotRow[];
+
+    if (isPartialWeek) {
+      const dailyRows = await fetchDailyMetrics(thisWeekStart, thisWeekEnd);
+      thisWeekRows = buildSnapshotFromDailyMetrics(dailyRows, thisWeekStart, thisWeekEnd);
+      await upsertSnapshots(thisWeekRows);
+    } else {
+      thisWeekRows = await sql`
+        SELECT week_start::text, week_end::text, platform, views, impressions,
+               engagements, engagement_rate, posts_count, followers_start, followers_end,
+               follower_growth, emv_total, emv_views, emv_likes, emv_comments, emv_shares, emv_other
+        FROM weekly_snapshots WHERE week_start = ${thisWeekStart}
+      ` as WeeklySnapshotRow[];
+
+      if (thisWeekRows.length === 0) {
+        const dailyRows = await fetchDailyMetrics(thisWeekStart, thisWeekEnd);
+        thisWeekRows = buildSnapshotFromDailyMetrics(dailyRows, thisWeekStart, thisWeekEnd);
+        await upsertSnapshots(thisWeekRows);
+      }
+    }
 
     let lastWeekRows = await sql`
       SELECT week_start::text, week_end::text, platform, views, impressions,
@@ -163,13 +178,6 @@ export async function GET(request: Request) {
              follower_growth, emv_total, emv_views, emv_likes, emv_comments, emv_shares, emv_other
       FROM weekly_snapshots WHERE week_start = ${lastWeekStart}
     ` as WeeklySnapshotRow[];
-
-    // If no weekly snapshots exist, compute from daily_metrics on the fly
-    if (thisWeekRows.length === 0) {
-      const dailyRows = await fetchDailyMetrics(thisWeekStart, thisWeekEnd);
-      thisWeekRows = buildSnapshotFromDailyMetrics(dailyRows, thisWeekStart, thisWeekEnd);
-      await upsertSnapshots(thisWeekRows);
-    }
 
     if (lastWeekRows.length === 0) {
       const dailyRows = await fetchDailyMetrics(lastWeekStart, lastWeekEnd);

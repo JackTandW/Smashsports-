@@ -2,8 +2,12 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "crons": [
     {
-      "path": "/api/refresh",
+      "path": "/api/cron",
       "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron?job=week-transition",
+      "schedule": "5 0 * * 1"
     }
   ]
 }
