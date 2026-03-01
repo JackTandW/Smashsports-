@@ -48,6 +48,32 @@ function latestValue(
   return Number(sorted[0][key]) || 0;
 }
 
+/**
+ * Sum followers across ALL profiles for the most recent date with non-zero data.
+ * Platforms like Facebook and Instagram have multiple profiles; we need the total.
+ * Falls back through recent dates if the latest date has all-zero followers
+ * (Sprout sometimes returns 0 temporarily for certain platforms).
+ */
+function latestFollowers(metrics: DailyProfileMetrics[]): number {
+  if (metrics.length === 0) return 0;
+
+  // Get unique dates sorted newest first
+  const dates = [...new Set(metrics.map((m) => m.date))].sort((a, b) =>
+    b.localeCompare(a)
+  );
+
+  for (const date of dates) {
+    const dateMetrics = metrics.filter((m) => m.date === date);
+    const total = dateMetrics.reduce(
+      (sum, m) => sum + (Number(m.followers) || 0),
+      0
+    );
+    if (total > 0) return total;
+  }
+
+  return 0;
+}
+
 export function aggregateMetrics(
   dailyMetrics: DailyProfileMetrics[]
 ): AggregateMetrics {
@@ -59,7 +85,7 @@ export function aggregateMetrics(
   const byPlatform = groupByPlatform(dailyMetrics);
   const totalFollowers = PLATFORM_IDS.reduce((sum, p) => {
     const platformMetrics = byPlatform[p] ?? [];
-    return sum + latestValue(platformMetrics, 'followers');
+    return sum + latestFollowers(platformMetrics);
   }, 0);
 
   const emv = PLATFORM_IDS.reduce((sum, platform) => {
@@ -107,7 +133,7 @@ export function getPerPlatformBreakdown(
     const totalImpressions = sumMetric(metrics, 'impressions');
     const totalEngagements = sumMetric(metrics, 'engagements');
     const totalPosts = sumMetric(metrics, 'postsPublished');
-    const totalFollowers = latestValue(metrics, 'followers');
+    const totalFollowers = latestFollowers(metrics);
 
     const emv = calculateEMV(platform, {
       views: totalViews,
@@ -244,34 +270,53 @@ export function getDonutData(platforms: PlatformMetrics[]): DonutSegment[] {
 export function getGrowthData(
   dailyMetrics: DailyProfileMetrics[]
 ): GrowthLinePoint[] {
-  const byMonth = new Map<string, Record<string, number>>();
+  // Group metrics by month → platform → profile to properly sum followers
+  // across multiple profiles per platform
+  const byMonth = new Map<string, Map<string, Map<number, number>>>();
 
   for (const m of dailyMetrics) {
     const month = m.date.substring(0, 7); // YYYY-MM
     if (!byMonth.has(month)) {
-      byMonth.set(month, { total: 0, youtube: 0, instagram: 0, tiktok: 0, x: 0, facebook: 0 });
+      byMonth.set(month, new Map());
     }
-    const entry = byMonth.get(month)!;
-    // Use the latest follower count per platform per month
-    const currentVal = entry[m.platform] ?? 0;
+    const platformMap = byMonth.get(month)!;
+    if (!platformMap.has(m.platform)) {
+      platformMap.set(m.platform, new Map());
+    }
+    const profileMap = platformMap.get(m.platform)!;
+    // Keep the highest follower count per profile within the month
+    const profileId = Number(m.profileId) || 0;
+    const currentVal = profileMap.get(profileId) ?? 0;
     if (m.followers > currentVal) {
-      entry.total += m.followers - currentVal;
-      entry[m.platform] = m.followers;
+      profileMap.set(profileId, m.followers);
     }
   }
 
-  // Recalculate total from platform values
   return Array.from(byMonth.entries())
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([month, data]) => ({
-      month,
-      total: data.youtube + data.instagram + data.tiktok + data.x + data.facebook,
-      youtube: data.youtube,
-      instagram: data.instagram,
-      tiktok: data.tiktok,
-      x: data.x,
-      facebook: data.facebook,
-    }));
+    .map(([month, platformMap]) => {
+      const platformTotals: Record<string, number> = {
+        youtube: 0, instagram: 0, tiktok: 0, x: 0, facebook: 0,
+      };
+      for (const [platform, profileMap] of platformMap) {
+        // Sum followers across all profiles for this platform
+        let total = 0;
+        for (const followers of profileMap.values()) {
+          total += followers;
+        }
+        platformTotals[platform] = total;
+      }
+      return {
+        month,
+        total: platformTotals.youtube + platformTotals.instagram +
+               platformTotals.tiktok + platformTotals.x + platformTotals.facebook,
+        youtube: platformTotals.youtube,
+        instagram: platformTotals.instagram,
+        tiktok: platformTotals.tiktok,
+        x: platformTotals.x,
+        facebook: platformTotals.facebook,
+      };
+    });
 }
 
 export function getHeatmapData(posts: PostMetrics[]): HeatmapDay[] {

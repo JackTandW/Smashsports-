@@ -24,7 +24,12 @@ function toPlatformId(networkType: string): PlatformId | null {
 }
 
 // Profile-level metrics to request from Sprout
+// Note: 'engagements' gives the Sprout-computed total (includes comments, shares,
+// clicks, saves, etc.) which is more complete than summing individual metrics —
+// Sprout does NOT return comments/shares/clicks at the profile analytics level
+// for most platforms, so individual metrics undercount total engagements.
 const PROFILE_METRICS = [
+  'engagements',
   'impressions',
   'reactions',
   'comments',
@@ -159,7 +164,12 @@ export async function POST(request: Request) {
       const shares = m.shares ?? 0;
       const saves = m.saves ?? 0;
       const clicks = m.post_clicks ?? 0;
-      const engagements = reactions + comments + shares + saves + clicks;
+      // Prefer Sprout's pre-computed 'engagements' total — it includes all
+      // engagement types even when individual metrics (comments, shares, clicks)
+      // return 0 at the profile analytics level.
+      const summedEngagements = reactions + comments + shares + saves + clicks;
+      const sproutEngagements = m.engagements ?? 0;
+      const engagements = Math.max(sproutEngagements, summedEngagements);
       const impressions = m.impressions ?? 0;
       const videoViews = m.video_views ?? 0;
       const followers = m['lifetime_snapshot.followers_count'] ?? 0;
@@ -185,7 +195,12 @@ export async function POST(request: Request) {
           saves = EXCLUDED.saves,
           video_views = EXCLUDED.video_views,
           clicks = EXCLUDED.clicks,
-          followers = EXCLUDED.followers,
+          -- Protect followers: don't overwrite non-zero with zero
+          -- (Sprout sometimes returns 0 followers for recent days temporarily)
+          followers = CASE
+            WHEN EXCLUDED.followers > 0 THEN EXCLUDED.followers
+            ELSE daily_metrics.followers
+          END,
           follower_growth = EXCLUDED.follower_growth,
           posts_published = EXCLUDED.posts_published
       `);

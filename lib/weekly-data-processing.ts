@@ -597,10 +597,27 @@ export function buildSnapshotFromDailyMetrics(
     const postsCount = platformRows.reduce((s, r) => s + r.posts_published, 0);
     const followerGrowth = platformRows.reduce((s, r) => s + r.follower_growth, 0);
 
-    // Get first and last day followers
-    const sorted = [...platformRows].sort((a, b) => a.date.localeCompare(b.date));
-    const followersStart = sorted[0].followers;
-    const followersEnd = sorted[sorted.length - 1].followers;
+    // Get first and last day followers — sum across all profiles per date
+    // (platforms like Facebook/Instagram have multiple profiles)
+    const dates = [...new Set(platformRows.map((r) => r.date))].sort();
+    const firstDate = dates[0];
+    const lastDate = dates[dates.length - 1];
+    const followersStart = platformRows
+      .filter((r) => r.date === firstDate)
+      .reduce((s, r) => s + r.followers, 0);
+    // For end-of-week followers, fall back to earlier dates if latest has 0
+    // (Sprout sometimes returns 0 for recent days temporarily)
+    let followersEnd = 0;
+    for (let i = dates.length - 1; i >= 0; i--) {
+      const dayFollowers = platformRows
+        .filter((r) => r.date === dates[i])
+        .reduce((s, r) => s + r.followers, 0);
+      if (dayFollowers > 0) {
+        followersEnd = dayFollowers;
+        break;
+      }
+    }
+    if (followersEnd === 0) followersEnd = followersStart;
 
     const engRate = impressions > 0 ? (engagements / impressions) * 100 : 0;
 
