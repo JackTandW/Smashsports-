@@ -4,6 +4,8 @@ import { NextRequest } from 'next/server';
 import { GET } from '@/app/api/talent/route';
 import type { TalentOverviewData } from '@/lib/talent-types';
 
+export const dynamic = 'force-dynamic';
+
 async function fetchTalentData(): Promise<TalentOverviewData> {
   const res = await GET(new NextRequest('http://localhost/api/talent?range=4w'));
   return res.json();

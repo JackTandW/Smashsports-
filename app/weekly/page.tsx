@@ -3,6 +3,8 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { GET } from '@/app/api/weekly/route';
 import type { WeeklyComparisonData } from '@/lib/weekly-types';
 
+export const dynamic = 'force-dynamic';
+
 async function fetchWeeklyData(): Promise<WeeklyComparisonData> {
   const res = await GET(new Request('http://localhost/api/weekly'));
   return res.json();

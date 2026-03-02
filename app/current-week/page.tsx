@@ -3,6 +3,8 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { GET } from '@/app/api/current-week/route';
 import type { CurrentWeekData } from '@/lib/current-week-types';
 
+export const dynamic = 'force-dynamic';
+
 async function fetchCurrentWeekData(): Promise<CurrentWeekData> {
   const res = await GET();
   return res.json();

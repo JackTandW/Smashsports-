@@ -84,7 +84,9 @@ export async function GET() {
       lastUpdated
     );
 
-    return NextResponse.json(data);
+    return NextResponse.json(data, {
+      headers: { 'Cache-Control': 'no-store, max-age=0' },
+    });
   } catch (error) {
     console.error('Analytics API error:', error);
     return NextResponse.json(

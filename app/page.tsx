@@ -3,6 +3,8 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { GET } from '@/app/api/analytics/route';
 import type { DashboardData } from '@/lib/types';
 
+export const dynamic = 'force-dynamic';
+
 async function fetchDashboardData(): Promise<DashboardData> {
   const res = await GET();
   return res.json();

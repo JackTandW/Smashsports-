@@ -134,7 +134,9 @@ export async function GET() {
       lastRefreshed
     );
 
-    return NextResponse.json(data);
+    return NextResponse.json(data, {
+      headers: { 'Cache-Control': 'no-store, max-age=0' },
+    });
   } catch (error) {
     console.error('Current week API error:', error);
     return NextResponse.json(

@@ -262,7 +262,9 @@ export async function GET(request: Request) {
       partialDayCount
     );
 
-    return NextResponse.json(data);
+    return NextResponse.json(data, {
+      headers: { 'Cache-Control': 'no-store, max-age=0' },
+    });
   } catch (error) {
     console.error('Weekly API error:', error);
     return NextResponse.json(

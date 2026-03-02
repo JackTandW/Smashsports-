@@ -5,6 +5,8 @@ import { NextRequest } from 'next/server';
 import { GET } from '@/app/api/shows/route';
 import type { ShowOverviewData } from '@/lib/show-types';
 
+export const dynamic = 'force-dynamic';
+
 async function fetchShowsData(): Promise<ShowOverviewData> {
   const res = await GET(new NextRequest('http://localhost/api/shows?range=4w'));
   return res.json();
