@@ -159,6 +159,14 @@ export interface DataQualityStatus {
   zeroValueAlerts: ZeroValueAlert[];
 }
 
+// --- Measurement period ---
+
+export interface MeasurementPeriod {
+  startDate: string;   // ISO date YYYY-MM-DD
+  endDate: string;     // ISO date YYYY-MM-DD
+  totalDays: number;
+}
+
 // --- Full dashboard payload ---
 
 export interface DashboardData {
@@ -173,6 +181,7 @@ export interface DashboardData {
   };
   topPosts: PostMetrics[];
   dataQuality: DataQualityStatus;
+  measurementPeriod: MeasurementPeriod;
 }
 
 // --- Platform config type ---

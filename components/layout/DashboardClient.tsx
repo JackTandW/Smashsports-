@@ -18,8 +18,28 @@ export function DashboardClient({ data }: DashboardClientProps) {
     setLastUpdated(data.dataQuality.lastUpdated);
   }, [data.dataQuality.lastUpdated, setLastUpdated]);
 
+  const period = data.measurementPeriod;
+  const fmtDate = (iso: string) => {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return d.toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' });
+  };
+
   return (
     <div className="space-y-2">
+      {/* Measurement period */}
+      {period.startDate && (
+        <div className="glass rounded-lg border border-border px-4 py-2.5 flex items-center justify-between flex-wrap gap-2">
+          <p className="text-xs text-muted">
+            <span className="text-foreground font-medium">Lifetime</span>{' · '}
+            {fmtDate(period.startDate)} – {fmtDate(period.endDate)}
+          </p>
+          <span className="text-[10px] text-muted font-data">
+            {period.totalDays} days tracked
+          </span>
+        </div>
+      )}
+
       {/* Data quality warnings */}
       {data.dataQuality.zeroValueAlerts.length > 0 && (
         <div className="glass rounded-lg border border-amber/30 px-4 py-2 text-xs text-amber">

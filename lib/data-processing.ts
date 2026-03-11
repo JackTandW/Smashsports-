@@ -410,6 +410,18 @@ export function buildDashboardData(
     freshnessLevel = 'red';
   }
 
+  // Measurement period — dailyMetrics are sorted by date ASC
+  const dates = dailyMetrics.map((m) => m.date).filter(Boolean);
+  const startDate = dates[0] ?? '';
+  const endDate = dates[dates.length - 1] ?? '';
+  const totalDays =
+    startDate && endDate
+      ? Math.round(
+          (new Date(endDate).getTime() - new Date(startDate).getTime()) /
+            (1000 * 60 * 60 * 24)
+        ) + 1
+      : 0;
+
   return {
     aggregate,
     heroCards,
@@ -428,5 +440,6 @@ export function buildDashboardData(
       discrepancies,
       zeroValueAlerts,
     },
+    measurementPeriod: { startDate, endDate, totalDays },
   };
 }
