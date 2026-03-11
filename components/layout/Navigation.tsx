@@ -12,6 +12,7 @@ const TABS = [
   { label: 'This Week', href: '/current-week' },
   { label: 'Shows', href: '/shows' },
   { label: 'Talent', href: '/talent' },
+  { label: 'TV Audience', href: '/tv-audience' },
 ];
 
 export function Navigation() {

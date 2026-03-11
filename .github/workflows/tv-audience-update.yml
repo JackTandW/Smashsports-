@@ -1,0 +1,155 @@
+# ──────────────────────────────────────────────────────────
+#  TV Audience Data — Automated Weekly Update
+# ──────────────────────────────────────────────────────────
+#  Triggers:
+#    1. Push an .xlsx tracker to data/ → parses & commits JSON
+#    2. Manual run from Actions tab (workflow_dispatch)
+#    3. Every Monday at 09:00 SAST (07:00 UTC) as a reminder
+#
+#  What it does:
+#    • Detects the latest .xlsx in data/
+#    • Runs the parser → regenerates tv_audience_data.json
+#    • Validates all 7 dashboard transforms
+#    • Auto-commits the updated JSON (if changed)
+#    • Prints a weekly summary to the Actions log
+# ──────────────────────────────────────────────────────────
+
+name: TV Audience Update
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'data/*.xlsx'
+
+  workflow_dispatch:
+    inputs:
+      spreadsheet:
+        description: 'Path to xlsx file (relative to repo root). Leave blank to auto-detect.'
+        required: false
+        default: ''
+
+  schedule:
+    # Every Monday 07:00 UTC = 09:00 SAST
+    - cron: '0 7 * * 1'
+
+# Only one update at a time — cancel any in-flight run
+concurrency:
+  group: tv-audience-update
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  update-tv-data:
+    name: Parse & Update TV Audience Data
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Need full history for meaningful commits
+          fetch-depth: 0
+
+      # ── 2. Setup Node ───────────────────────────────────
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # ── 3. Find the spreadsheet ─────────────────────────
+      - name: Detect spreadsheet
+        id: detect
+        run: |
+          # Use manual input if provided
+          MANUAL="${{ github.event.inputs.spreadsheet }}"
+          if [[ -n "$MANUAL" && -f "$MANUAL" ]]; then
+            echo "xlsx_path=$MANUAL" >> "$GITHUB_OUTPUT"
+            echo "✅ Using manual input: $MANUAL"
+            exit 0
+          fi
+
+          # Auto-detect: find newest .xlsx in data/
+          XLSX=$(find data/ -maxdepth 1 -name '*.xlsx' -type f -printf '%T@ %p\n' 2>/dev/null \
+            | sort -rn | head -1 | cut -d' ' -f2-)
+
+          if [[ -z "$XLSX" ]]; then
+            echo "❌ No .xlsx file found in data/"
+            echo "   Push a tracker spreadsheet to data/ or specify one manually."
+            exit 1
+          fi
+
+          echo "xlsx_path=$XLSX" >> "$GITHUB_OUTPUT"
+          echo "✅ Auto-detected: $XLSX"
+
+      # ── 4. Run the parser ───────────────────────────────
+      - name: Parse spreadsheet → JSON
+        run: |
+          echo "📊 Parsing: ${{ steps.detect.outputs.xlsx_path }}"
+          npx tsx scripts/parse-tv-audience.ts "${{ steps.detect.outputs.xlsx_path }}"
+
+      # ── 5. Validate dashboard payload ───────────────────
+      - name: Validate dashboard transforms
+        run: npx tsx scripts/validate-tv-payload.ts
+
+      # ── 6. Print weekly summary ─────────────────────────
+      - name: Print weekly summary
+        run: |
+          node -e "
+            const raw = require('./data/tv_audience_data.json');
+            const ks = raw.keyStats;
+            const s = raw.tvItems.summary;
+            const fmt = n => n >= 1e6 ? (n/1e6).toFixed(2)+'M' : n >= 1e3 ? (n/1e3).toFixed(1)+'K' : n.toString();
+
+            console.log('');
+            console.log('╔══════════════════════════════════════════════╗');
+            console.log('║  📺 TV Audience — Week ' + raw.metadata.weekNumber + ' Summary' + ' '.repeat(Math.max(0, 19 - String(raw.metadata.weekNumber).length)) + '║');
+            console.log('╚══════════════════════════════════════════════╝');
+            console.log('');
+            console.log('  Show:             ', raw.metadata.showName);
+            console.log('  Unique Audience:  ', fmt(ks.totalUniqueAudience));
+            console.log('  WoW Increase:     ', (ks.increaseFromPreviousWeek * 100).toFixed(1) + '%');
+            console.log('  New Viewers (7d): ', fmt(ks.totalNewViewersPast7Days));
+            console.log('  Peak Broadcast:   ', fmt(ks.peakAudienceSingleBroadcast));
+            console.log('  Total Broadcasts: ', s.totalBroadcasts, '(P:' + s.byTxType.premier + ' R:' + s.byTxType.repeat + ')');
+            console.log('  Channels:         ', s.uniqueChannels.join(', '));
+            console.log('  Episodes:         ', raw.episodeTable.episodes.length);
+            console.log('  Date Range:       ', s.dateRange.start + ' → ' + s.dateRange.end);
+            console.log('');
+          "
+
+      # ── 7. Commit updated JSON ─────────────────────────
+      - name: Commit updated JSON
+        env:
+          XLSX_SOURCE: ${{ steps.detect.outputs.xlsx_path }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add data/tv_audience_data.json
+
+          # Only commit if there are actual changes
+          if git diff --cached --quiet; then
+            echo "ℹ️  No changes to tv_audience_data.json — skipping commit"
+          else
+            WEEK=$(node -e "console.log(require('./data/tv_audience_data.json').metadata.weekNumber)")
+            AUDIENCE=$(node -e "const n=require('./data/tv_audience_data.json').keyStats.totalUniqueAudience; console.log(n>=1e6?(n/1e6).toFixed(2)+'M':n>=1e3?(n/1e3).toFixed(1)+'K':n)")
+
+            MSG="📺 TV Audience Week ${WEEK}: ${AUDIENCE} unique viewers"
+            MSG="${MSG}
+
+          Auto-generated from spreadsheet by CI pipeline.
+          Source: ${XLSX_SOURCE}"
+
+            git commit -m "${MSG}"
+            git push
+            echo "✅ Committed and pushed updated JSON"
+          fi

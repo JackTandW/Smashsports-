@@ -41,6 +41,11 @@ yarn-error.log*
 # vercel
 .vercel
 
+# generated data — track xlsx input + json output for CI pipeline
+/data/*
+!/data/*.xlsx
+!/data/*.json
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "tv:parse": "tsx scripts/parse-tv-audience.ts",
+    "tv:update": "tsx scripts/weekly-tv-update.ts",
+    "tv:validate": "tsx scripts/validate-tv-payload.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",
@@ -18,6 +21,7 @@
     "react-dom": "19.2.3",
     "react-icons": "^5.5.0",
     "recharts": "^3.7.0",
+    "xlsx": "^0.18.5",
     "zustand": "^5.0.11"
   },
   "devDependencies": {
