@@ -202,9 +202,7 @@ function printSummary(raw: TVAudienceData, payload: TVAudiencePayload) {
   heading('DASHBOARD PAYLOAD VALIDATION');
   console.log('');
   success(`Hero cards: ${payload.heroCards.length}`);
-  success(`Season comparison groups: ${payload.seasonComparison.length} (${payload.seasonComparison.reduce((s, g) => s + g.rows.length, 0)} rows)`);
   success(`Episode chart points: ${payload.episodeChart.length}`);
-  success(`Reach chart variants: ${payload.reachChart.variants.length}`);
   success(`Weekly performance rows: ${payload.weeklyPerformance.length}`);
   success(`Channel donut segments: ${payload.channelDonut.length}`);
   success(`Tier donut segments: ${payload.tierDonut.length}`);

@@ -27,10 +27,8 @@ export function buildTVAudiencePayload(raw: TVAudienceData): TVAudiencePayload {
 
   return {
     metadata: raw.metadata,
-    heroCards: buildHeroCards(raw.keyStats, raw.tvItems.summary, weeklyPerformance),
-    seasonComparison: buildSeasonComparison(raw.kpa),
+    heroCards: buildHeroCards(raw.keyStats, raw.tvItems.summary, raw.tvItems.items, weeklyPerformance),
     episodeChart: buildEpisodeChartData(raw.episodeTable),
-    reachChart: buildReachChartData(raw.reachBuild),
     weeklyPerformance,
     channelDonut: buildChannelDonut(raw.tvItems.items),
     tierDonut: buildTierDonut(raw.tvItems.items),
@@ -53,8 +51,13 @@ function buildSparklineFromWeeks(
 function buildHeroCards(
   keyStats: TVKeyStats,
   summary: TVItemsSummary,
+  items: TVBroadcastItem[],
   weeklyPerformance: TVWeeklyPerformanceRow[],
 ): TVHeroCard[] {
+  // Total consumption hours for current season (2025/2026)
+  const currentSeasonItems = items.filter((i) => i.season === '2025/2026');
+  const totalConsumptionHours = currentSeasonItems.reduce((s, i) => s + i.consumption, 0);
+
   return [
     {
       key: 'uniqueAudience',
@@ -62,6 +65,13 @@ function buildHeroCards(
       value: keyStats.totalUniqueAudience,
       format: 'number',
       sparkline: buildSparklineFromWeeks(weeklyPerformance, (w) => w.totalReach),
+    },
+    {
+      key: 'consumptionHours',
+      label: 'Consumption Hours',
+      value: totalConsumptionHours,
+      format: 'number',
+      sparkline: buildSparklineFromWeeks(weeklyPerformance, (w) => w.totalConsumption),
     },
     {
       key: 'wowIncrease',
@@ -248,6 +258,7 @@ function buildWeeklyPerformance(items: TVBroadcastItem[]): TVWeeklyPerformanceRo
       avgTvr: weekItems.reduce((s, i) => s + i.tvr, 0) / n,
       avgAtsSeconds: weekItems.reduce((s, i) => s + i.atsSeconds, 0) / n,
       totalReach: weekItems.reduce((s, i) => s + i.aveDailyReach, 0),
+      totalConsumption: weekItems.reduce((s, i) => s + i.consumption, 0),
     });
   }
 

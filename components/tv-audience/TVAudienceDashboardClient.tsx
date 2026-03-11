@@ -2,10 +2,8 @@
 
 import type { TVAudiencePayload } from '@/lib/tv-audience-types';
 import { TVHeroCards } from './TVHeroCards';
-import { TVSeasonComparison } from './TVSeasonComparison';
 import { TVEpisodeBarChart } from './TVEpisodeBarChart';
-import { TVCumulativeReachChart } from './TVCumulativeReachChart';
-import { TVWeeklyPerformanceTable } from './TVWeeklyPerformanceTable';
+import { TVWeeklyPerformanceChart } from './TVWeeklyPerformanceChart';
 import { TVDistributionDonuts } from './TVDistributionDonuts';
 import { TVPremierRepeatBreakdown } from './TVPremierRepeatBreakdown';
 import { ChartErrorBoundary } from '@/components/ui/ChartErrorBoundary';
@@ -33,23 +31,17 @@ export function TVAudienceDashboardClient({ data }: TVAudienceDashboardClientPro
       {/* Section 1: Hero KPI Cards */}
       <TVHeroCards cards={data.heroCards} />
 
-      {/* Section 2: Season Comparison */}
-      <TVSeasonComparison groups={data.seasonComparison} />
-
-      {/* Section 3: Episode Bar Chart */}
+      {/* Section 2: Episode Comparison */}
       <ChartErrorBoundary fallbackTitle="Episode Comparison">
         <TVEpisodeBarChart data={data.episodeChart} />
       </ChartErrorBoundary>
 
-      {/* Section 4: Cumulative Reach */}
-      <ChartErrorBoundary fallbackTitle="Cumulative Reach">
-        <TVCumulativeReachChart data={data.reachChart} />
+      {/* Section 3: Weekly Performance Chart */}
+      <ChartErrorBoundary fallbackTitle="Weekly Performance">
+        <TVWeeklyPerformanceChart rows={data.weeklyPerformance} />
       </ChartErrorBoundary>
 
-      {/* Section 5: Weekly Performance Table */}
-      <TVWeeklyPerformanceTable rows={data.weeklyPerformance} />
-
-      {/* Section 6: Distribution Donuts */}
+      {/* Section 4: Distribution Donuts */}
       <ChartErrorBoundary fallbackTitle="Distribution">
         <TVDistributionDonuts
           channelData={data.channelDonut}
@@ -57,7 +49,7 @@ export function TVAudienceDashboardClient({ data }: TVAudienceDashboardClientPro
         />
       </ChartErrorBoundary>
 
-      {/* Section 7: Premier vs Repeat */}
+      {/* Section 5: Premier vs Repeat */}
       <ChartErrorBoundary fallbackTitle="Premier vs Repeat">
         <TVPremierRepeatBreakdown data={data.premierRepeat} />
       </ChartErrorBoundary>

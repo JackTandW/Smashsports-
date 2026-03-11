@@ -169,9 +169,7 @@ export interface TVAudienceData {
 export interface TVAudiencePayload {
   metadata: TVAudienceMetadata;
   heroCards: TVHeroCard[];
-  seasonComparison: TVSeasonComparisonGroup[];
   episodeChart: TVEpisodeChartPoint[];
-  reachChart: TVReachChartData;
   weeklyPerformance: TVWeeklyPerformanceRow[];
   channelDonut: TVDonutSegment[];
   tierDonut: TVDonutSegment[];
@@ -229,6 +227,7 @@ export interface TVWeeklyPerformanceRow {
   avgTvr: number;
   avgAtsSeconds: number;
   totalReach: number;
+  totalConsumption: number;
 }
 
 export interface TVDonutSegment {
