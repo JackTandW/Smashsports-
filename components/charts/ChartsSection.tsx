@@ -3,7 +3,6 @@
 import type { DashboardData } from '@/lib/types';
 import { PlatformDonutChart } from './PlatformDonutChart';
 import { CumulativeGrowthChart } from './CumulativeGrowthChart';
-import { ContentHeatmap } from './ContentHeatmap';
 import { EmvStackedBar } from './EmvStackedBar';
 import { TopPostsTable } from './TopPostsTable';
 
@@ -22,10 +21,7 @@ export function ChartsSection({ data }: ChartsSectionProps) {
         <CumulativeGrowthChart data={data.charts.growth} />
       </div>
 
-      {/* Row 2: Heatmap (full width) */}
-      <ContentHeatmap data={data.charts.heatmap} />
-
-      {/* Row 3: EMV Breakdown */}
+      {/* Row 2: EMV Breakdown */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <EmvStackedBar data={data.charts.emvBreakdown} />
         <div /> {/* Empty cell for balance */}
