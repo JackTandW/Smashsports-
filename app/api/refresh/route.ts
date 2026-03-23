@@ -9,6 +9,51 @@ import platformsConfig from '@/config/platforms.json';
 export const runtime = 'nodejs';
 export const maxDuration = 300; // 5 minute timeout for full refresh
 
+/**
+ * Sanitise text for safe insertion via Neon's HTTP driver.
+ *
+ * Neon serialises SQL parameters as JSON in the HTTP body. Social media post
+ * text (emoji, surrogates, stray backslashes, null bytes) can produce malformed
+ * JSON that crashes the server-side parser with:
+ *   "could not parse the HTTP request body: unexpected end of hex escape"
+ *
+ * Strategy: round-trip through Buffer to normalise encoding, then strip every
+ * character class known to cause issues.
+ */
+function sanitiseForNeon(raw: string | null | undefined, maxLen = 500): string {
+  if (!raw) return '';
+
+  let text = raw;
+
+  // 1. Buffer round-trip: re-encode to clean up broken UTF-8 sequences
+  try {
+    text = Buffer.from(text, 'utf8').toString('utf8');
+  } catch (_) {
+    // If encoding fails, fall through with the original string
+  }
+
+  // 2. Strip null bytes and ASCII control chars (except \n \r \t)
+  text = text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+
+  // 3. Remove lone surrogates (unpaired high/low surrogates break JSON)
+  // eslint-disable-next-line no-control-regex
+  text = text.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/g, '');
+  text = text.replace(/(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '');
+
+  // 4. Remove literal backslash sequences that form invalid hex/unicode escapes
+  //    e.g. a literal "\x1" or "\u00" in the text (not a real escape, but Neon's
+  //    JSON parser tries to interpret them)
+  text = text.replace(/\\x[0-9a-fA-F]{0,1}(?![0-9a-fA-F])/g, '');
+  text = text.replace(/\\u[0-9a-fA-F]{0,3}(?![0-9a-fA-F])/g, '');
+
+  // 5. Replace any remaining backslashes that could start ambiguous escapes
+  //    with a safe unicode representation
+  text = text.replace(/\\/g, '\u29F5'); // ⧵ (reverse solidus operator)
+
+  // 6. Truncate
+  return text.substring(0, maxLen);
+}
+
 // Map Sprout network_type → our PlatformId
 // Sprout uses "fb_instagram_account" for Instagram business accounts
 const NETWORK_TYPE_ALIASES: Record<string, string> = {
@@ -119,10 +164,12 @@ export async function POST(request: Request) {
 
     for (const p of relevantProfiles) {
       const platform = toPlatformId(p.network_type)!;
-      const handle = p.native_name ?? p.name;
+      const name = sanitiseForNeon(p.name, 200);
+      const handle = sanitiseForNeon(p.native_name ?? p.name, 200);
+      const nativeId = sanitiseForNeon(p.native_id, 200);
       await sql`
         INSERT INTO profiles (customer_profile_id, platform, name, handle, native_id)
-        VALUES (${p.customer_profile_id}, ${platform}, ${p.name}, ${handle}, ${p.native_id})
+        VALUES (${p.customer_profile_id}, ${platform}, ${name}, ${handle}, ${nativeId})
         ON CONFLICT(customer_profile_id) DO UPDATE SET
           platform = EXCLUDED.platform,
           name = EXCLUDED.name,
@@ -226,84 +273,105 @@ export async function POST(request: Request) {
     );
     console.log(`[Refresh] Fetched ${allPosts.length} posts`);
 
-    // 6. Upsert posts (batch via transaction)
-    const postQueries = [];
-    for (const post of allPosts) {
-      // customer_profile_id comes back as a string from post analytics
-      const profileIdRaw = post.customer_profile_id;
-      if (!profileIdRaw) continue;
-      const profileId = typeof profileIdRaw === 'string' ? Number(profileIdRaw) : profileIdRaw;
+    // 6. Upsert posts (chunked transactions — 50 posts per batch to avoid
+    //    Neon HTTP body size limits while keeping performance reasonable)
+    const CHUNK_SIZE = 50;
+    let postsSkipped = 0;
 
-      const entry = profileMap.get(profileId);
-      if (!entry) continue;
+    for (let chunkStart = 0; chunkStart < allPosts.length; chunkStart += CHUNK_SIZE) {
+      const chunk = allPosts.slice(chunkStart, chunkStart + CHUNK_SIZE);
+      const chunkQueries = [];
 
-      const platform = entry.platform;
-      const m = post.metrics ?? {};
+      for (const post of chunk) {
+        // customer_profile_id comes back as a string from post analytics
+        const profileIdRaw = post.customer_profile_id;
+        if (!profileIdRaw) continue;
+        const profileId = typeof profileIdRaw === 'string' ? Number(profileIdRaw) : profileIdRaw;
 
-      const reactions = m['lifetime.reactions'] ?? 0;
-      const commentsCount = m['lifetime.comments_count'] ?? 0;
-      const sharesCount = m['lifetime.shares_count'] ?? 0;
-      const savesCount = 0; // C-02: saves not available at post level (only in daily profile analytics)
-      const clicksCount = m['lifetime.post_content_clicks'] ?? 0; // C-03: only X/FB return clicks
-      const rawImpressions = m['lifetime.impressions'] ?? 0;
-      // C-01: YouTube impressions are always 0 via Sprout — use views as proxy
-      const impressions = rawImpressions === 0 && platform === 'youtube'
-        ? (m['lifetime.views'] ?? m['lifetime.video_views'] ?? 0)
-        : rawImpressions;
-      const videoViews = m['lifetime.video_views'] ?? m['lifetime.views'] ?? 0;
-      const engagements = reactions + commentsCount + sharesCount + savesCount + clicksCount;
+        const entry = profileMap.get(profileId);
+        if (!entry) continue;
 
-      // Calculate EMV using the standard calculator
-      const emv = calculateEMV(platform, {
-        views: videoViews,
-        impressions,
-        likes: reactions,
-        comments: commentsCount,
-        shares: sharesCount,
-        saves: savesCount,
-        clicks: clicksCount,
-      });
+        const platform = entry.platform;
+        const m = post.metrics ?? {};
 
-      const postId = post.guid ?? `${platform}-${post.created_time}-${profileId}`;
-      // Sanitise content: strip null bytes and broken hex/unicode escapes that
-      // crash Neon's HTTP SQL parser (error: "unexpected end of hex escape")
-      const content = (post.text ?? '')
-        .replace(/\x00/g, '')           // null bytes
-        .replace(/\\x[0-9a-fA-F]{0,1}(?![0-9a-fA-F])/g, '') // incomplete \xN sequences
-        .replace(/\\u[0-9a-fA-F]{0,3}(?![0-9a-fA-F])/g, '') // incomplete \uNNNN sequences
-        .substring(0, 500);
-      const createdAt = post.created_time ?? '';
-      const permalink = post.perma_link ?? '';
+        const reactions = m['lifetime.reactions'] ?? 0;
+        const commentsCount = m['lifetime.comments_count'] ?? 0;
+        const sharesCount = m['lifetime.shares_count'] ?? 0;
+        const savesCount = 0; // C-02: saves not available at post level (only in daily profile analytics)
+        const clicksCount = m['lifetime.post_content_clicks'] ?? 0; // C-03: only X/FB return clicks
+        const rawImpressions = m['lifetime.impressions'] ?? 0;
+        // C-01: YouTube impressions are always 0 via Sprout — use views as proxy
+        const impressions = rawImpressions === 0 && platform === 'youtube'
+          ? (m['lifetime.views'] ?? m['lifetime.video_views'] ?? 0)
+          : rawImpressions;
+        const videoViews = m['lifetime.video_views'] ?? m['lifetime.views'] ?? 0;
+        const engagements = reactions + commentsCount + sharesCount + savesCount + clicksCount;
 
-      postQueries.push(sql`
-        INSERT INTO posts (
-          id, profile_id, platform, created_at, content, permalink,
-          impressions, engagements, video_views, reactions,
-          comments, shares, saves, clicks, emv
-        ) VALUES (
-          ${postId}, ${profileId}, ${platform}, ${createdAt}, ${content}, ${permalink},
-          ${impressions}, ${engagements}, ${videoViews}, ${reactions},
-          ${commentsCount}, ${sharesCount}, ${savesCount}, ${clicksCount}, ${emv}
-        )
-        ON CONFLICT(id) DO UPDATE SET
-          impressions = EXCLUDED.impressions,
-          engagements = EXCLUDED.engagements,
-          video_views = EXCLUDED.video_views,
-          reactions = EXCLUDED.reactions,
-          comments = EXCLUDED.comments,
-          shares = EXCLUDED.shares,
-          saves = EXCLUDED.saves,
-          clicks = EXCLUDED.clicks,
-          emv = EXCLUDED.emv,
-          cached_at = CURRENT_TIMESTAMP
-      `);
-      recordsUpdated++;
+        // Calculate EMV using the standard calculator
+        const emv = calculateEMV(platform, {
+          views: videoViews,
+          impressions,
+          likes: reactions,
+          comments: commentsCount,
+          shares: sharesCount,
+          saves: savesCount,
+          clicks: clicksCount,
+        });
+
+        const postId = sanitiseForNeon(post.guid ?? `${platform}-${post.created_time}-${profileId}`, 300);
+        const content = sanitiseForNeon(post.text);
+        const createdAt = post.created_time ?? '';
+        const permalink = sanitiseForNeon(post.perma_link, 1000);
+
+        chunkQueries.push(sql`
+          INSERT INTO posts (
+            id, profile_id, platform, created_at, content, permalink,
+            impressions, engagements, video_views, reactions,
+            comments, shares, saves, clicks, emv
+          ) VALUES (
+            ${postId}, ${profileId}, ${platform}, ${createdAt}, ${content}, ${permalink},
+            ${impressions}, ${engagements}, ${videoViews}, ${reactions},
+            ${commentsCount}, ${sharesCount}, ${savesCount}, ${clicksCount}, ${emv}
+          )
+          ON CONFLICT(id) DO UPDATE SET
+            impressions = EXCLUDED.impressions,
+            engagements = EXCLUDED.engagements,
+            video_views = EXCLUDED.video_views,
+            reactions = EXCLUDED.reactions,
+            comments = EXCLUDED.comments,
+            shares = EXCLUDED.shares,
+            saves = EXCLUDED.saves,
+            clicks = EXCLUDED.clicks,
+            emv = EXCLUDED.emv,
+            cached_at = CURRENT_TIMESTAMP
+        `);
+        recordsUpdated++;
+      }
+
+      if (chunkQueries.length > 0) {
+        try {
+          await sql.transaction(chunkQueries);
+        } catch (chunkErr) {
+          // If a chunk fails, fall back to individual inserts so one bad post
+          // doesn't lose the whole chunk
+          console.warn(`[Refresh] Chunk ${chunkStart}-${chunkStart + chunk.length} failed, falling back to individual inserts:`, chunkErr);
+          for (const q of chunkQueries) {
+            try {
+              await q;
+            } catch (postErr) {
+              postsSkipped++;
+              console.warn(`[Refresh] Skipped post in fallback:`, postErr instanceof Error ? postErr.message : postErr);
+            }
+          }
+        }
+      }
+
+      if ((chunkStart + CHUNK_SIZE) % 500 === 0) {
+        console.log(`[Refresh] Posts progress: ${Math.min(chunkStart + CHUNK_SIZE, allPosts.length)}/${allPosts.length}`);
+      }
     }
 
-    if (postQueries.length > 0) {
-      await sql.transaction(postQueries);
-    }
-    console.log(`[Refresh] Upserted ${allPosts.length} posts`);
+    console.log(`[Refresh] Upserted ${allPosts.length - postsSkipped} posts (${postsSkipped} skipped)`);
 
     await logRefreshComplete(refreshId, 'completed', recordsUpdated);
 
