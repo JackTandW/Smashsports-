@@ -265,7 +265,13 @@ export async function POST(request: Request) {
       });
 
       const postId = post.guid ?? `${platform}-${post.created_time}-${profileId}`;
-      const content = (post.text ?? '').substring(0, 500);
+      // Sanitise content: strip null bytes and broken hex/unicode escapes that
+      // crash Neon's HTTP SQL parser (error: "unexpected end of hex escape")
+      const content = (post.text ?? '')
+        .replace(/\x00/g, '')           // null bytes
+        .replace(/\\x[0-9a-fA-F]{0,1}(?![0-9a-fA-F])/g, '') // incomplete \xN sequences
+        .replace(/\\u[0-9a-fA-F]{0,3}(?![0-9a-fA-F])/g, '') // incomplete \uNNNN sequences
+        .substring(0, 500);
       const createdAt = post.created_time ?? '';
       const permalink = post.perma_link ?? '';
 
