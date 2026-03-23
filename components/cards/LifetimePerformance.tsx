@@ -17,7 +17,7 @@ const heroMetrics: StaticMetric[] = [
 const supportingMetrics: StaticMetric[] = [
   { label: 'Total Posts', value: '3,916', subtitle: 'All platforms' },
   { label: 'Total Engagements', value: '4.1M', subtitle: '4,118,333' },
-  { label: 'Total Followers', value: '752K+', subtitle: 'As at Jan 2026' },
+  { label: 'Total Followers', value: '774.2K', subtitle: 'As at Mar 2026' },
   { label: 'Total Likes', value: '9.5M', subtitle: '9,475,128' },
   { label: 'Engagement Rate', value: '3.46%', subtitle: 'Lifetime average' },
 ];

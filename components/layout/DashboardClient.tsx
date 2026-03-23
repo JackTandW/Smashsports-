@@ -42,6 +42,14 @@ export function DashboardClient({ data }: DashboardClientProps) {
         </div>
       )}
 
+      <LifetimePerformance />
+      <TelevisionPerformance />
+      <PlatformGrid platforms={data.platforms} />
+      <ChartsSection data={data} />
+
+      {/* Sprout Social API metrics (moved to bottom) */}
+      <HeroSection cards={data.heroCards} />
+
       {/* Data quality warnings */}
       {data.dataQuality.zeroValueAlerts.length > 0 && (
         <div className="glass rounded-lg border border-amber/30 px-4 py-2 text-xs text-amber">
@@ -61,12 +69,6 @@ export function DashboardClient({ data }: DashboardClientProps) {
           ))}
         </div>
       )}
-
-      <HeroSection cards={data.heroCards} />
-      <LifetimePerformance />
-      <TelevisionPerformance />
-      <PlatformGrid platforms={data.platforms} />
-      <ChartsSection data={data} />
 
       {/* Anomaly summary */}
       {data.dataQuality.anomalies.length > 0 && (
