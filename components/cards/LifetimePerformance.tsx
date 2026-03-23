@@ -9,9 +9,9 @@ interface StaticMetric {
 }
 
 const heroMetrics: StaticMetric[] = [
-  { label: 'Total Views / Impressions', value: '118.9M', subtitle: 'Across all social platforms' },
-  { label: 'Total Audience Reach', value: '95.9M', subtitle: 'Estimated unique reach' },
-  { label: 'Total Est. Media Value', value: 'R134M+', subtitle: 'Social EMV R16.3M + TV AVE R118.3M' },
+  { label: 'Total Views & Impressions', value: '118.9M', subtitle: 'Across all social platforms' },
+  { label: 'Total Audience / Followers', value: '774.2K', subtitle: 'As at Mar 2026' },
+  { label: 'Total Estimated Media Value', value: 'R134M+', subtitle: 'Social EMV R16.3M + TV AVE R118.3M' },
 ];
 
 const supportingMetrics: StaticMetric[] = [
