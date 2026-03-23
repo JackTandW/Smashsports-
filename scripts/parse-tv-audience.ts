@@ -124,14 +124,18 @@ function toStr(val: unknown): string {
 // ─── Sheet Parsers ────────────────────────────────────────
 
 function parseKeyStats(wb: XLSX.WorkBook): { keyStats: TVKeyStats; metadata: Partial<TVAudienceMetadata> } {
-  const rows = getRawRowsWithDates(wb, 'Report-Key Stats');
-  if (rows.length === 0) throw new Error('Sheet "Report-Key Stats" not found or empty');
+  // Prefer the "Dates" variant which has proper date columns; fall back to any "Report-Key Stats*" sheet
+  const keyStatsSheet = wb.SheetNames.find(n => /^Report-Key Stats-Dates/i.test(n))
+    ?? wb.SheetNames.find(n => /^Report-Key Stats/i.test(n))
+    ?? 'Report-Key Stats';
+  const rows = getRawRowsWithDates(wb, keyStatsSheet);
+  if (rows.length === 0) throw new Error(`Sheet matching "Report-Key Stats*" not found or empty (tried "${keyStatsSheet}")`);
 
   // Row 0: Title with week number — in col 2
   const titleCell = toStr(rows[0]?.[2]);
   const weekMatch = titleCell.match(/WEEK\s+(\d+)/i);
   const weekNumber = weekMatch ? parseInt(weekMatch[1], 10) : 0;
-  const showName = titleCell.replace(/\s*-\s*WEEK\s+\d+/i, '').trim();
+  const showName = titleCell.replace(/\s*-\s*WEEK\s+\d+.*$/i, '').trim();
 
   // Row 2: KPIs in specific column positions
   //   col 7 = "TOTAL UNIQUE AUDIENCE" label, col 9 = value
