@@ -33,20 +33,37 @@ export function LifetimePerformance() {
       {/* Hero cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         {heroMetrics.map((metric, i) => (
-          <GlassCard
+          <div
             key={metric.label}
-            className="p-4 animate-fade-in"
+            className="relative rounded-[14px] p-[1px] animate-fade-in"
             style={{
               animationDelay: `${i * 80}ms`,
-              borderTop: '2px solid rgba(34,197,94,0.5)',
+              background: 'linear-gradient(135deg, rgba(0,212,255,0.4), rgba(0,255,136,0.25), rgba(0,212,255,0.1))',
             }}
           >
-            <div className="flex flex-col gap-2">
-              <span className="text-xs text-muted uppercase tracking-wide">{metric.label}</span>
-              <span className="font-data tabular-nums text-3xl font-bold text-foreground">{metric.value}</span>
-              <span className="text-[10px] text-muted">{metric.subtitle}</span>
+            <div
+              className="rounded-[13px] px-6 py-5"
+              style={{
+                background: 'linear-gradient(135deg, rgba(18,18,26,0.95), rgba(12,12,18,0.98))',
+                boxShadow: '0 0 24px rgba(0,212,255,0.08), 0 4px 20px rgba(0,0,0,0.4)',
+              }}
+            >
+              <div className="flex flex-col gap-1.5">
+                <span className="text-[11px] text-muted uppercase tracking-widest font-medium">{metric.label}</span>
+                <span
+                  className="font-data tabular-nums text-4xl font-bold"
+                  style={{
+                    background: 'linear-gradient(135deg, #ffffff, #00D4FF)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                  }}
+                >
+                  {metric.value}
+                </span>
+                <span className="text-[11px] text-muted mt-1">{metric.subtitle}</span>
+              </div>
             </div>
-          </GlassCard>
+          </div>
         ))}
       </div>
 
