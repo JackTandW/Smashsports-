@@ -3,6 +3,8 @@
 import { useEffect } from 'react';
 import type { DashboardData } from '@/lib/types';
 import { HeroSection } from '@/components/cards/HeroMetricCard';
+import { LifetimePerformance } from '@/components/cards/LifetimePerformance';
+import { TelevisionPerformance } from '@/components/cards/TelevisionPerformance';
 import { PlatformGrid } from '@/components/cards/PlatformCard';
 import { ChartsSection } from '@/components/charts/ChartsSection';
 import { useDashboardStore } from '@/store/dashboard-store';
@@ -61,6 +63,8 @@ export function DashboardClient({ data }: DashboardClientProps) {
       )}
 
       <HeroSection cards={data.heroCards} />
+      <LifetimePerformance />
+      <TelevisionPerformance />
       <PlatformGrid platforms={data.platforms} />
       <ChartsSection data={data} />
 
